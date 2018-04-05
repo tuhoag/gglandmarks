@@ -3,7 +3,8 @@ from PIL import Image
 from io import BytesIO
 from urllib import request, error
 import os
-from keras.preprocessing import krimage
+import tensorflow as tf
+import keras.preprocessing.image as krimage
 
 DEFAULT_DIRECTORY='./data/landmarks_recognition/'
 DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
@@ -37,7 +38,7 @@ def load_images(directory, data, force_download):
 
 def load_local_images(directory, data):
     images = []
-    for row in data.rows:
+    for _, row in data.iterrows():
         image_path = row['path']
         images.append(krimage.load_img(image_path))
 
@@ -49,7 +50,7 @@ def download(directory, data):
     total_images = len(data)
     print('start downloading images: {}'.format(total_images))
     count = 0
-    for row in data.rows:
+    for _, row in data.iterrows():
         image_path = download_image(row['url'], directory, row['id'])
         if image_path != '':
             image_paths.append({'id': row['id'], 'path': image_path})
