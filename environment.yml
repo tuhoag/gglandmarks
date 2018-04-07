@@ -1,4 +1,4 @@
-name: dl
+name: gglandmark
 channels:
   - anaconda
   - conda-forge
@@ -58,5 +58,4 @@ dependencies:
     - tensorboard==1.7.0
     - tensorflow==1.7.0
     - termcolor==1.1.0
-prefix: /Users/hatu/miniconda3/envs/dl
 
