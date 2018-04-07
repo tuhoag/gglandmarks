@@ -1,4 +1,4 @@
-name: gglandmark
+name: dl
 channels:
   - anaconda
   - conda-forge
@@ -29,7 +29,7 @@ dependencies:
   - pycodestyle=2.3.1
   - pylint=1.8.3
   - python=3.6.5
-  - python-dateutil
+  - python-dateutil=2.7.2
   - pytz=2018.3
   - pyyaml=3.12
   - readline=7.0
@@ -58,4 +58,5 @@ dependencies:
     - tensorboard==1.7.0
     - tensorflow==1.7.0
     - termcolor==1.1.0
+prefix: /Users/hatu/miniconda3/envs/dl
 
