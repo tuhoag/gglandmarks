@@ -4,7 +4,7 @@ from io import BytesIO
 from urllib import request, error
 import os
 import tensorflow as tf
-import keras.preprocessing.image as krimage
+#import keras.preprocessing.image as krimage
 
 DEFAULT_DIRECTORY='./data/landmarks_recognition/'
 DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
@@ -40,7 +40,7 @@ def load_local_images(directory, data):
     images = []
     for _, row in data.iterrows():
         image_path = row['path']
-        images.append(krimage.load_img(image_path))
+        images.append(tf.keras.preprocssing.image.load_img(image_path))
 
     return images
 
@@ -56,7 +56,7 @@ def download(directory, data):
             image_paths.append({'id': row['id'], 'path': image_path})
 
         count += 1
-        print('download {} / {} image'.format(count, total_images))
+        print('download {} / {} image - {:4.4f}%'.format(count, total_images, count/total_images*100))
 
     return pd.Series(image_paths, name='path')
 
