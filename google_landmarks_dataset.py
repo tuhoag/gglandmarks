@@ -31,7 +31,12 @@ def dataset(directory, data_file, resize, sample, force_download=True):
     else:
         images_folder = '{}_{}'.format(resize[0], resize[1])
 
-    images = load_images(os.path.join(directory, images_folder), df, resize, force_download)
+    images_path = os.path.join(directory, images_folder)
+    
+    if not os.path.exists(images_path):
+        os.makedirs(images_path)
+        
+    images = load_images(images_path, df, resize, force_download)
 
     return images, df['landmark_id'].values
 
@@ -54,7 +59,7 @@ def load_local_images(directory, data):
 
 def split_chunks(data, num_processes):
     total_images = data.shape[0]
-    chunk_size = int(total_images / num_processes)
+    chunk_size = int(total_images / num_processes) if total_images > num_processes else 1
     chunks_data = [data.iloc[i:i + chunk_size] for i in range(0, total_images, chunk_size)]
     chunks = [(i, chunks_data[i]) for i in range(len(chunks_data))]
 
