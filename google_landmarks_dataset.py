@@ -9,53 +9,117 @@ from functools import reduce, partial
 
 #import keras.preprocessing.image as krimage
 
-DEFAULT_DIRECTORY='./data/landmarks_recognition/'
+DEFAULT_DATA_DIRECTORY='./data/landmarks_recognition/'
+TRAIN_DEFAULT_DIRECTORY='./data/landmarks_recognition/'
+TEST_DEFAULT_DIRECTORY = './data/landmarks_recognition/test/'
 DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
+NUMBER_OF_SAMPLES = 5
 
-
-def load_train_dataset(directory=DEFAULT_DIRECTORY, resize=None, sample=False, force_download=True):
-    return dataset(directory, 'train.csv', resize, sample, force_download)
-
-
-def load_test_dataset(directory=DEFAULT_DIRECTORY, resize=None, sample=False, force_download=True):
-    return dataset(directory, 'test.csv', resize, sample, force_download)
-
-def dataset(directory, data_file, resize, sample, force_download=True):
-    df = pd.read_csv(os.path.join(directory, data_file))
-
-    if sample:
-        df = df.head()
-
+def load_train_data(directory=DEFAULT_DATA_DIRECTORY, resize=None):
     if resize is None:
-        images_folder = DEFAULT_ORIGINAL_IMG_DIRECTORY
+        images_directory = DEFAULT_ORIGINAL_IMG_DIRECTORY
     else:
-        images_folder = '{}_{}'.format(resize[0], resize[1])
+        images_directory = '{}_{}'.format(resize[0], resize[1])
 
-    images_path = os.path.join(directory, images_folder)
-    
-    if not os.path.exists(images_path):
-        os.makedirs(images_path)
-        
-    images = load_images(images_path, df, resize, force_download)
+    images_directory = os.path.join(directory, images_directory)
+    indexed_train_df_path = os.path.join(images_directory, 'train_index.csv')
 
-    return images, df['landmark_id'].values
 
-def load_images(directory, data, resize, force_download):
+
+
+def init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample = None, resize=None, force_download=True):
+    # check and create data folders
+    print('initing dataset')
+    print('creating folders')
+    if resize is None:
+        images_directory = DEFAULT_ORIGINAL_IMG_DIRECTORY
+    else:
+        images_directory = '{}_{}'.format(resize[0], resize[1])
+
+    images_directory = os.path.join(directory, images_directory)
+    train_directory = os.path.join(images_directory, 'train')
+    test_directory = os.path.join(images_directory, 'test')
+
+    directories = [images_directory, train_directory, test_directory]
+    for each in directories:
+        if not os.path.exists(each):
+            os.makedirs(each)
+
+    # load original train & test data
+    print('loading dataframes')
+    train_df_path = os.path.join(directory, 'train.csv')
+    test_df_path= os.path.join(directory, 'test.csv')
+
+    train_df = pd.read_csv(train_df_path, index_col=0)
+    test_df = pd.read_csv(test_df_path, index_col=0)
+
+    if not sample is None:
+        train_df = train_df.head(NUMBER_OF_SAMPLES)
+        test_df = test_df.head(NUMBER_OF_SAMPLES)
+
+    print('downloading data')
     if force_download:
-        image_paths = download(directory, data, resize)
-        # remove empty
+        # download train
+        download(train_directory, train_df, resize)
+        # download test
+        download(test_directory, test_df, resize)
 
-    images = load_local_images(directory, data)
+    # build indexed files for train & test (remove missing data)
+    print('building index files')
+    indexed_train_df_path = os.path.join(images_directory, 'train_index.csv')
+    indexed_test_df_path = os.path.join(images_directory, 'test_index.csv')
 
-    return image_paths, images
+    indexed_train_df = build_indexed_file(train_directory, train_df, indexed_train_df_path)
+    indexed_test_df = build_indexed_file(test_directory, test_df, indexed_test_df_path)
 
-def load_local_images(directory, data):
-    images = []
-    for _, row in data.iterrows():
-        image_path = row['path']
-        images.append(tf.keras.preprocssing.image.load_img(image_path))
+    return indexed_train_df, indexed_test_df
 
-    return images
+def build_indexed_file(images_directory, data, indexed_path):
+    num_processes = multiprocessing.cpu_count()
+    chunks = split_chunks(data, num_processes)
+
+    pool = multiprocessing.Pool(processes=num_processes)
+    prod = partial(check_chunk, directory=images_directory)
+    image_paths = pool.map(prod, chunks)
+
+    img_series = pd.Series()
+
+    for each in image_paths:
+        img_series = img_series.append(pd.Series(each))
+    img_series = img_series.rename('path')
+
+    data['path'] = img_series
+    new_data = data[data['path'] != '']
+    new_data = new_data.drop(columns=['url'])
+    new_data.to_csv(indexed_path)
+
+    return new_data
+
+def check_chunk(chunk, directory):
+    chunk_index, data = chunk
+    print('start checking chunk: {}'.format(chunk_index))
+
+    total_images = len(data)
+    count = 0
+    image_paths = {}
+
+    for index, row in data.iterrows():
+        cls = row.get('landmark_id')
+        if cls is None:
+            image_path = os.path.join(directory, '{}.jpg'.format(index))
+        else:
+            image_path = os.path.join(directory, str(cls), '{}.jpg'.format(index))
+
+        if os.path.exists(image_path):
+            image_paths[index] = image_path
+        else:
+            image_paths[index] = ''
+
+        count += 1
+        print('[{}] - checked {} / {} image - {:4.4f}%'.format(chunk_index,
+                                                                count, total_images, count/total_images*100))
+
+    return image_paths
 
 def split_chunks(data, num_processes):
     total_images = data.shape[0]
@@ -67,8 +131,8 @@ def split_chunks(data, num_processes):
     print('total number of images: {:,}'.format(total_images))
     print('chunk size: {:,}'.format(chunk_size))
     print('total chunks: {}'.format(len(chunks)))
-    print('data: {}'.format(data))
-    print('first chunk: {}'.format(chunks[0]))
+    # print('data: {}'.format(data))
+    # print('first chunk: {}'.format(chunks[0]))
 
     sum_chunk = 0
     for i in range(0, len(chunks)):
@@ -87,30 +151,39 @@ def download(directory, data, resize):
 
     pool = multiprocessing.Pool(processes=num_processes)
     prod = partial(download_chunk, directory=directory, resize=resize)
-    result = pool.map(prod, chunks)
-    print(result)
-    # image_paths = []
+    image_paths = pool.map(prod, chunks)
+    img_series = pd.Series()
 
+    for each in image_paths:
+        img_series = img_series.append(pd.Series(each))
+    img_series = img_series.rename('path')
+
+    return img_series
 
 def download_chunk(chunk, directory, resize):
     chunk_index, data = chunk
     print('start downloading chunk: {}'.format(chunk_index))
     total_images = len(data)
     count = 0
-    image_paths = []
+    image_paths = {}
 
-    for _, row in data.iterrows():
-        image_path = download_image(row['url'], directory, row['id'], resize)
+    for index, row in data.iterrows():
+        cls = None if 'landmark_id' not in data.columns else str(row['landmark_id'])
+        image_path = download_image(row['url'], directory, index, resize, cls)
         if image_path != '':
-            image_paths.append({'id': row['id'], 'path': image_path})
+            image_paths[index] = image_path
 
         count += 1
         print('[{}] - download {} / {} image - {:4.4f}%'.format(chunk_index, count, total_images, count/total_images*100))
 
     return image_paths
 
-def download_image(url, directory, name, resize):
-    image_path = os.path.join(directory, '{}.jpg'.format(name))
+def download_image(url, directory, name, resize, cls):
+    image_directory = directory if cls is None else os.path.join(directory, cls)
+    if not os.path.exists(image_directory):
+        os.makedirs(image_directory)
+
+    image_path = os.path.join(image_directory, '{}.jpg'.format(name))
 
     try:
         if os.path.exists(image_path):
@@ -135,15 +208,5 @@ def download_image(url, directory, name, resize):
         print('Warning: Failed to save image {}'.format(image_path))
         return ''
 
-def print_data_stats(data):
-    series = pd.Series(data, name='data')
-    print(series.describe())
-
 if '__main__' == __name__:
-    trainX, trainY = load_train_dataset(resize=(128, 128), sample=True)
-    testX, testY = load_test_dataset(resize=(128, 128), sample=True)
-
-    print('train stats')
-    print_data_stats(trainY)
-    print('test stats')
-    print_data_stats(testY)
+    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=True, resize=(128, 128), force_download=True)
