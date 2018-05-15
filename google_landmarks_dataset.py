@@ -15,17 +15,29 @@ TEST_DEFAULT_DIRECTORY = './data/landmarks_recognition/test/'
 DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
 NUMBER_OF_SAMPLES = 5
 
-def load_train_data(directory=DEFAULT_DATA_DIRECTORY, resize=None):
+def load_data(directory, resize):
     if resize is None:
         images_directory = DEFAULT_ORIGINAL_IMG_DIRECTORY
     else:
         images_directory = '{}_{}'.format(resize[0], resize[1])
 
     images_directory = os.path.join(directory, images_directory)
-    indexed_train_df_path = os.path.join(images_directory, 'train_index.csv')
+    train_directory = os.path.join(images_directory, 'train_index.csv')
+    test_directory = os.path.join(images_directory, 'test_index.csv')
 
+    train_df = pd.read_csv(train_directory)
+    test_df = pd.read_csv(test_directory)
 
+    return train_df, test_df
 
+def load_raw_data(directory):
+    train_directory = os.path.join(directory, 'train.csv')
+    test_directory = os.path.join(directory, 'test.csv')
+
+    train_df = pd.read_csv(train_directory)
+    test_df = pd.read_csv(test_directory)
+
+    return train_df, test_df
 
 def init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample = False, resize=None, force_download=True):
     # check and create data folders
@@ -89,8 +101,7 @@ def build_indexed_file(images_directory, data, indexed_path):
     img_series = img_series.rename('path')
 
     data['path'] = img_series
-    new_data = data[data['path'] != '']
-    new_data = new_data.drop(columns=['url'])
+    new_data = data.drop(columns=['url'])
     new_data.to_csv(indexed_path)
 
     return new_data
@@ -209,4 +220,4 @@ def download_image(url, directory, name, resize, cls):
         return ''
 
 if '__main__' == __name__:
-    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=False, resize=(128, 128), force_download=True)
+    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=True, resize=(128, 128), force_download=False)
