@@ -27,7 +27,7 @@ def load_train_data(directory=DEFAULT_DATA_DIRECTORY, resize=None):
 
 
 
-def init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample = None, resize=None, force_download=True):
+def init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample = False, resize=None, force_download=True):
     # check and create data folders
     print('initing dataset')
     print('creating folders')
@@ -53,7 +53,7 @@ def init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample = None, resize=None, f
     train_df = pd.read_csv(train_df_path, index_col=0)
     test_df = pd.read_csv(test_df_path, index_col=0)
 
-    if not sample is None:
+    if sample:
         train_df = train_df.head(NUMBER_OF_SAMPLES)
         test_df = test_df.head(NUMBER_OF_SAMPLES)
 
@@ -209,4 +209,4 @@ def download_image(url, directory, name, resize, cls):
         return ''
 
 if '__main__' == __name__:
-    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=True, resize=(128, 128), force_download=True)
+    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=False, resize=(128, 128), force_download=True)
