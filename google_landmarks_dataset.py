@@ -6,6 +6,7 @@ import os
 import tensorflow as tf
 import multiprocessing
 from functools import reduce, partial
+from tqdm import trange, tqdm
 
 #import keras.preprocessing.image as krimage
 
@@ -173,19 +174,22 @@ def download(directory, data, resize):
 
 def download_chunk(chunk, directory, resize):
     chunk_index, data = chunk
-    print('start downloading chunk: {}'.format(chunk_index))
+    # print('start downloading chunk: {}'.format(chunk_index))
     total_images = len(data)
     count = 0
     image_paths = {}
 
-    for index, row in data.iterrows():
-        cls = None if 'landmark_id' not in data.columns else str(row['landmark_id'])
-        image_path = download_image(row['url'], directory, index, resize, cls)
-        if image_path != '':
-            image_paths[index] = image_path
+    # tqdm.pandas
+    with tqdm(total = total_images, position=chunk_index) as pbar:
+        for index, row in data.iterrows():
+            cls = None if 'landmark_id' not in data.columns else str(row['landmark_id'])
+            image_path = download_image(row['url'], directory, index, resize, cls)
+            if image_path != '':
+                image_paths[index] = image_path
 
-        count += 1
-        print('[{}] - download {} / {} image - {:4.4f}%'.format(chunk_index, count, total_images, count/total_images*100))
+            count += 1
+            pbar.update(1)
+            # print('[{}] - download {} / {} image - {:4.4f}%'.format(chunk_index, count, total_images, count/total_images*100))
 
     return image_paths
 
@@ -198,7 +202,7 @@ def download_image(url, directory, name, resize, cls):
 
     try:
         if os.path.exists(image_path):
-            print('Image {} already exists. Skipping download.'.format(image_path))
+            # print('Image {} already exists. Skipping download.'.format(image_path))
             return image_path
 
         response = request.urlopen(url)
@@ -213,11 +217,11 @@ def download_image(url, directory, name, resize, cls):
 
         return image_path
     except error.URLError as err:
-        print('Warning: Could not download image {} from {}'.format(name, url))
+        # print('Warning: Could not download image {} from {}'.format(name, url))
         return ''
     except IOError as err:
-        print('Warning: Failed to save image {}'.format(image_path))
+        # print('Warning: Failed to save image {}'.format(image_path))
         return ''
 
 if '__main__' == __name__:
-    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=True, resize=(128, 128), force_download=False)
+    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=False, resize=(128, 128), force_download=True)
