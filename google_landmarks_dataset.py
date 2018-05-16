@@ -220,4 +220,4 @@ def download_image(url, directory, name, resize, cls):
         return ''
 
 if '__main__' == __name__:
-    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=True, resize=(128, 128), force_download=False)
+    train_df, test_df = init_dataset(directory=DEFAULT_DATA_DIRECTORY, sample=False, resize=(128, 128), force_download=True)
