@@ -1,5 +1,5 @@
 from random_model import RandomModel
-from google_landmarks_dataset import load_data, DEFAULT_DATA_DIRECTORY, load_raw_data
+from google_landmarks_dataset import load_meta_data, DEFAULT_DATA_DIRECTORY, load_raw_data
 
 if __name__ == "__main__":
     model = RandomModel()
