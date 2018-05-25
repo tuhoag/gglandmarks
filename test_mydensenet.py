@@ -9,8 +9,8 @@ import os
 import numpy as np
 from tqdm import tqdm
 from google_landmarks_dataset import GoogleLandmarkTestGenerator
-import google_landmarks_dataset
-from models import MyDenseNet
+from app.models import MyDenseNet
+from app.datasets import GoogleLandmarkGenerator
 
 # load data
 data_path = './data/landmarks_recognition/'
@@ -31,36 +31,10 @@ image_channel = 3
 image_shape=(image_width, image_height, image_channel)
 model_weights_file = './weights/densenet121.h5'
 
-train_datagen = ImageDataGenerator(
-        rescale=1./255,
-        shear_range=0.2,
-        zoom_range=0.2,
-        horizontal_flip=True)
-
-train_generator = train_datagen.flow_from_directory(
-        image_train_path,
-        target_size=(image_width, image_height),
-        batch_size=batch_size,
-        class_mode='categorical')
-
-label_map = train_generator.class_indices
-inv_label_map = {v: k for k, v in label_map.items()}
-# print(inv_label_map)
-
 model = MyDenseNet(image_shape, num_classes)
 print(model.summary())
-
-# if os.path.exists(model_weights_file):
-#   model.load_weights(model_weights_file)
-
-# # print(model.summary())
-# # model.fit_generator(
-# #         train_generator,
-# #         # steps_per_epoch=2000 // batch_size,
-# #         epochs=2)
-
-# model.save_weights(model_weights_file)
-
+generator = GoogleLandmarkGenerator(data_path, (128, 128))
+model.train_and_validate(generator=generator, epochs=1, validation_split=0.1, batch_size=batch_size)
 # test_generator = GoogleLandmarkTestGenerator(data_path, 
 #   size=(image_original_width, image_original_height), 
 #   target_size=(image_width, image_height), 
