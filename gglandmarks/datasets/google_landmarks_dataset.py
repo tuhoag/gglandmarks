@@ -15,9 +15,10 @@ import keras
 import numpy as np
 import math
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelBinarizer
+from sklearn.preprocessing import LabelBinarizer, LabelEncoder
 import time
 from .data_generator import DataGenerator
+from .encoder import Encoder
 
 DEFAULT_DATA_DIRECTORY='./data/landmarks_recognition/'
 TRAIN_DEFAULT_DIRECTORY='./data/landmarks_recognition/'
@@ -52,9 +53,16 @@ class GoogleLandmarkDataset(object):
 
         stats = self.get_frequent_landmarks(train_df, images_count_min)
         landmarks = stats.index.tolist()
-
+        # print('frequent landmarks len: {}'.format(len(landmarks)))
+        print('train before remove: {}'.format(train_df.shape))
+        # print(landmarks)
+        # print(train_df['landmark_id'].describe())
+        # print(train_df['landmark_id'])
+        # print(train_df['landmark_id'].isin(landmarks))
+        # print(train_df[train_df['landmark_id'].isin(landmarks)])
         new_train_df = train_df[train_df['landmark_id'].isin(landmarks)]
-        new_train_df = train_df[train_df['path'] != '']
+        print('train after remove: {}'.format(new_train_df.shape))
+        new_train_df = new_train_df[new_train_df['path'] != '']
 
         new_train_df.to_csv('temp.csv')
 
@@ -81,8 +89,8 @@ class GoogleLandmarkDataset(object):
         return stats
 
     @property
-    def number_of_classes(self):
-        return self.encoder.classes_
+    def num_classes(self):
+        return self.encoder.classes_.shape[0]
 
     @property
     def classes(self):
@@ -98,10 +106,9 @@ class GoogleLandmarkDataset(object):
             encoder -- LabelBinarizer mapping from landmark to index
         """
 
-        lb = LabelBinarizer()
-        lb.fit(landmarks)
-
-        return lb
+        encoder = Encoder(landmarks)
+        
+        return encoder
 
     def get_train_validation_generator(self, batch_size, target_size, validation_size):
         """Get train and validation generators

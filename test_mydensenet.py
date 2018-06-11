@@ -8,9 +8,9 @@ import glob
 import os
 import numpy as np
 from tqdm import tqdm
-from app.datasets.google_landmarks_dataset import GoogleLandmarkTestGenerator
-from app.models import MyDenseNet
-from app.datasets import GoogleLandmarkDataset
+from gglandmarks.datasets.google_landmarks_dataset import GoogleLandmarkTestGenerator
+from gglandmarks.models import MyDenseNet, MyBasicModel
+from gglandmarks.datasets import GoogleLandmarkDataset
 
 # load data
 data_path = './data/landmarks_recognition/'
@@ -29,18 +29,17 @@ image_width = 48
 image_height = 48
 image_channel = 3
 image_shape=(image_width, image_height, image_channel)
-model_weights_file = './weights/densenet121.h5'
 
 
-dataset = GoogleLandmarkDataset(data_path, (128, 128), images_count_min=5000)
+dataset = GoogleLandmarkDataset(data_path, (128, 128), images_count_min=30000)
 print(dataset.train_df.shape)
-print(dataset.number_of_classes)
+print(dataset.num_classes)
 
-# model = MyDenseNet(image_shape, num_classes)
-# print(model.summary())
+model = MyBasicModel(image_shape, dataset.num_classes)
+print(model.summary())
 
 
-# model.train_and_validate(dataset, batch_size=batch_size, epochs=1, validation_split=0.1)
+model.train_and_validate(dataset, batch_size=batch_size, epochs=2, validation_split=0.1)
 
 # test_generator = GoogleLandmarkTestGenerator(data_path,
 #   size=(image_original_width, image_original_height),

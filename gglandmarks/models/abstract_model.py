@@ -8,40 +8,23 @@ import glob
 import os
 import numpy as np
 from tqdm import tqdm
+from keras.callbacks import TensorBoard
+from time import time
 
-
-class MyDenseNet(object):
-    def __init__(self, input_shape, num_classes, weight_cache_folder=os.getcwd()):
-        self.name = 'mydensenet'
+class AbstractModel(object):
+    def __init__(self, input_shape, num_classes, log_dir, weight_cache_folder=os.getcwd()):        
         self.weight_cache_folder = weight_cache_folder
 
         self.input_shape = input_shape
         self.num_classes = num_classes
-        self.model = self.create_model(input_shape, num_classes)
+        self.model = self.create_model(input_shape, num_classes)        
+        self.tensorboard = TensorBoard(log_dir= os.path.join(log_dir, self.name, time()))
 
+    @property
+    def name(self):
+        raise NotImplementedError('Please implement the create model function')
     def create_model(self, input_shape, num_classes):
-        base_model = DenseNet121(weights='imagenet', include_top=False)
-        for layer in base_model.layers:
-            layer.trainable = False
-
-        # Create your own input format (here 3x200x200)
-        input = Input(shape=input_shape, name='input')
-
-        # Use the generated model
-        base_output = base_model(input)
-
-        # Add the fully-connected layers
-        x = Flatten(name='flatten')(base_output)
-        # x = Dense(4096, activation='relu', name='fc1')(x)
-        x = Dense(num_classes, activation='sigmoid', name='predictions')(x)
-
-        # Create your own model
-        model = Model(inputs=input, outputs=x)
-        model.compile(loss='categorical_crossentropy',
-                      optimizer='rmsprop',
-                      metrics=['accuracy'])
-
-        return model
+        raise NotImplementedError('Please implement the create model function')
 
     def summary(self):
         return self.model.summary()
@@ -50,7 +33,7 @@ class MyDenseNet(object):
     def model_weights_file(self):
         return os.path.join(self.weight_cache_folder, '{}_{}.h5'.format(self.name, self.num_classes))
 
-    def train_and_validate(self, generator, epochs, validation_split, batch_size, train_steps=2, load_weight=True):
+    def train_and_validate(self, generator, epochs, validation_split, batch_size, train_steps=1, load_weight=True):
         """Train and validate model
 
         Arguments:
@@ -76,6 +59,7 @@ class MyDenseNet(object):
 
         train_history_metrics = []
         eval_history_metrics = []
+        train_result_names = ['train_loss', 'train_accuracy']
         for i in range(epochs):
             train_gen, val_gen = next(gen)
 
@@ -84,6 +68,8 @@ class MyDenseNet(object):
                 metrics[name] = []
 
             for x, y in train_gen:
+                print(x.shape)
+                print(y.shape)
                 train_results = self.model.train_on_batch(x, y)
 
                 for idx, val in enumerate(train_results):
@@ -111,3 +97,6 @@ class MyDenseNet(object):
                 eval_history_metrics.append(metrics)
 
         return train_history_metrics, eval_history_metrics
+
+    def predict(self, X):
+        return self.model.predict(X)

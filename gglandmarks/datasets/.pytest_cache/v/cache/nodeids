@@ -1,0 +1,5 @@
+[
+  "test_encoder.py::test_classes",
+  "test_encoder.py::test_encode",
+  "test_encoder.py::test_decode"
+]

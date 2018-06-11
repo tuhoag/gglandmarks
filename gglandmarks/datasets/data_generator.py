@@ -1,6 +1,7 @@
 import math
 import numpy as np
-from app.utils import load_image
+from gglandmarks.utils import load_image
+from keras.utils import to_categorical
 
 class DataGenerator(object):
     def __init__(self, paths, landmarks, encoder, batch_size, target_size):
@@ -32,9 +33,11 @@ class DataGenerator(object):
                 image_array = image_array.reshape(
                     self.target_size[0], self.target_size[1], 3)
                 X_temp.append(image_array)
-
-        Y = self.encoder.transform(batch_landmarks)
-
+        # print(self.encoder.classes_)
+        # print(batch_landmarks)
+        Y = self.encoder.encode(batch_landmarks)
+        
+        # print('transform: {}'.format(Y))        
         self.current_idx += 1
 
         return np.asarray(X_temp), Y
