@@ -19,22 +19,22 @@ stats = generator.get_frequent_landmarks()
 print(stats)
 stats.to_csv('stats.csv')
 
-gen = generator.get_train_validation_generator(batch_size, target_size, 0.1)
+gen = generator.get_train_validation_generator(batch_size, target_size, 0.1, clean_data=False)
 for i in range(epochs):
   train_gen, test_gen = next(gen)
 
   # print(train_gen, ' ', test_gen)
-  
+
   # print(next(train_gen))
   # print(next(test_gen))
   countx = 0
   county = 0
-  j = 0  
+  j = 0
   for x, y in test_gen:
-    
+
     countx += x.shape[0]
     county += y.shape[0]
-    print('{}/{} - x: {}, y: {}'.format(j, len(test_gen), x.shape, y.shape))  
+    print('{}/{} - x: {}, y: {}'.format(j, len(test_gen), x.shape, y.shape))
     j+=1
-    
-  print('total x: {}, total y: {}'.format(countx, county))  
+
+  print('total x: {}, total y: {}'.format(countx, county))

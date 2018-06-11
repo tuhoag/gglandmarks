@@ -8,9 +8,9 @@ import glob
 import os
 import numpy as np
 from tqdm import tqdm
-from google_landmarks_dataset import GoogleLandmarkTestGenerator
+from app.datasets.google_landmarks_dataset import GoogleLandmarkTestGenerator
 from app.models import MyDenseNet
-from app.datasets import GoogleLandmarkGenerator
+from app.datasets import GoogleLandmarkDataset
 
 # load data
 data_path = './data/landmarks_recognition/'
@@ -31,13 +31,20 @@ image_channel = 3
 image_shape=(image_width, image_height, image_channel)
 model_weights_file = './weights/densenet121.h5'
 
-model = MyDenseNet(image_shape, num_classes)
-print(model.summary())
-generator = GoogleLandmarkGenerator(data_path, (128, 128))
-model.train_and_validate(generator=generator, epochs=1, validation_split=0.1, batch_size=batch_size)
-# test_generator = GoogleLandmarkTestGenerator(data_path, 
-#   size=(image_original_width, image_original_height), 
-#   target_size=(image_width, image_height), 
+
+dataset = GoogleLandmarkDataset(data_path, (128, 128), images_count_min=5000)
+print(dataset.train_df.shape)
+print(dataset.number_of_classes)
+
+# model = MyDenseNet(image_shape, num_classes)
+# print(model.summary())
+
+
+# model.train_and_validate(dataset, batch_size=batch_size, epochs=1, validation_split=0.1)
+
+# test_generator = GoogleLandmarkTestGenerator(data_path,
+#   size=(image_original_width, image_original_height),
+#   target_size=(image_width, image_height),
 #   batch_size=batch_size)
 
 # label_predictions = []
@@ -51,8 +58,8 @@ model.train_and_validate(generator=generator, epochs=1, validation_split=0.1, ba
 #     # count +=1
 #     # if count > 5:
 #     #   break
-#     predictions = model.predict(image_batch, batch_size=batch_size, verbose=1)  
-#     predict_label = np.argmax(predictions, axis=1)  
+#     predictions = model.predict(image_batch, batch_size=batch_size, verbose=1)
+#     predict_label = np.argmax(predictions, axis=1)
 #     batch_label_predictions = list(map(lambda x: inv_label_map[x],predict_label))
 #     batch_prob_predictions = np.max(predictions, axis=1)
 

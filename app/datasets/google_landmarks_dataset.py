@@ -26,50 +26,97 @@ DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
 NUMBER_OF_SAMPLES = 1000
 
 class GoogleLandmarkDataset(object):
-    def __init__(self, directory, size, images_count_min=None):
+    def __init__(self, directory, size, images_count_min=None, is_clean_data=True):
         self.train_df, self.test_df = load_data(directory, size)
         self.size = size
         self.images_count_min = images_count_min
 
-        self.train_df = self.clean_train_data()
+        print('train before clean: {}'.format(self.train_df.shape))
+        if is_clean_data:
+            self.train_df = self.clean_train_data(self.train_df, self.images_count_min)
+            print('train after clean: {}'.format(self.train_df.shape))
 
         # build classes indexes
-        self.encoder = self.create_label_indexes()
+        self.encoder = self.create_label_indexes(self.train_df['landmark_id'])
 
-    def clean_train_data(self):
-        stats = self.get_frequent_landmarks()        
+    def clean_train_data(self, train_df, images_count_min):
+        """Remove classes have less than images_count_min data
+
+        Arguments:
+            train_df [DataFrame] -- train data
+            images_count_min [int] -- minimum images per class
+
+        Returns:
+            [DataFrame] -- The cleaned training data
+        """
+
+        stats = self.get_frequent_landmarks(train_df, images_count_min)
         landmarks = stats.index.tolist()
-        
-        train_df = self.train_df[self.train_df['landmark_id'].isin(landmarks)]
+
+        new_train_df = train_df[train_df['landmark_id'].isin(landmarks)]
+        new_train_df = train_df[train_df['path'] != '']
+
+        new_train_df.to_csv('temp.csv')
+
+        return new_train_df
+
+    def get_frequent_landmarks(self, train_df, images_count_min):
+        """Get all landmarks have the number of images higher than images_count_min
+
+        Arguments:
+            train_df [DataFrame] -- Training data
+            images_count_min [int] -- The minium number of images per landmark
+
+        Returns:
+            [dictionary] -- landmark and the number of images per landmark
+        """
+
         train_df = train_df[train_df['path'] != '']
-        
-        train_df.to_csv('temp.csv')
-
-        return train_df
-
-    def get_frequent_landmarks(self):
-        train_df = self.train_df[self.train_df['path'] != '']
 
         stats = train_df.groupby(['landmark_id']).count().sort_values(by=['path'])
 
-        if not self.images_count_min is None:
-            stats = stats[stats['path'] >= self.images_count_min]
+        if not images_count_min is None:
+            stats = stats[stats['path'] >= images_count_min]
 
         return stats
 
     @property
-    def classes(self):
-        return self.encoder.classes_        
+    def number_of_classes(self):
+        return self.encoder.classes_
 
-    def create_label_indexes(self):
-        landmarks = self.train_df['landmark_id']
+    @property
+    def classes(self):
+        return self.encoder.classes_
+
+    def create_label_indexes(self, landmarks):
+        """Create scikit mapping from landmarks to id
+
+        Arguments:
+            landmarks [Panda Series] -- All landmarks in dataset
+
+        Returns:
+            encoder -- LabelBinarizer mapping from landmark to index
+        """
+
         lb = LabelBinarizer()
         lb.fit(landmarks)
 
         return lb
 
     def get_train_validation_generator(self, batch_size, target_size, validation_size):
-        train_df = self.train_df[self.train_df['path'] != '']
+        """Get train and validation generators
+
+        Arguments:
+            batch_size [int] -- Batch size
+            target_size [tuple(width, height)] -- Tuple of image width and height
+            validation_size [type] -- Percentage of validation set
+
+        Returns:
+            (DataGenerator, DataGenerator) -- Train and validation generator
+        """
+
+
+        train_df = self.train_df
 
         paths = train_df['path'].tolist()
         landmarks = train_df['landmark_id'].tolist()
@@ -79,28 +126,28 @@ class GoogleLandmarkDataset(object):
 
             data_gen = self.data_generator(batch_size, target_size)
 
-            yield data_gen(train_path, train_landmark), data_gen(test_path, test_landmark)        
-    
-    def data_generator(self, batch_size, target_size):                    
+            yield data_gen(train_path, train_landmark), data_gen(test_path, test_landmark)
+
+    def data_generator(self, batch_size, target_size):
         def create_data_generator(paths, landmarks):
             return DataGenerator(paths, landmarks, self.encoder, batch_size, target_size)
-        
-        return create_data_generator        
+
+        return create_data_generator
 
 class GoogleLandmarkTestGenerator(Sequence):
     def __init__(self, directory, size, batch_size, target_size):
         self.directory = directory,
         self.size = size
-        self.batch_size = batch_size   
-        self.target_size = target_size   
+        self.batch_size = batch_size
+        self.target_size = target_size
         df_path = os.path.join(get_image_path(directory, size), 'test_index.csv')
 
-        if not os.path.exists(df_path):            
+        if not os.path.exists(df_path):
             raise FileNotFoundError('not found test indexed data')
         df = pd.read_csv(df_path, keep_default_na=False)
         self.data = df[df['path'] != '']
 
-        print('total images ', len(df))                
+        print('total images ', len(df))
         print('total nonempty image ', len(self.data))
 
     def __len__(self):
@@ -110,15 +157,15 @@ class GoogleLandmarkTestGenerator(Sequence):
         start_idx = idx * self.batch_size
         end_idx = (idx + 1) * self.batch_size
         batch_data = self.data[start_idx:end_idx]
-    
+
         images_batch = np.empty((0, self.target_size[0], self.target_size[1], 3))
-        idx_batch = np.empty((0))        
+        idx_batch = np.empty((0))
 
         for _, row in batch_data.iterrows():
             image_array = load_image(row['path'], self.target_size)
             if image_array is not None:
                 image_array = image_array.reshape(1, self.target_size[0], self.target_size[1], 3)
-                images_batch = np.append(images_batch, image_array, axis=0)                
+                images_batch = np.append(images_batch, image_array, axis=0)
                 idx_batch = np.append(idx_batch, [row['id']])
 
         return idx_batch, images_batch
@@ -129,7 +176,7 @@ class GoogleLandmarkTestGenerator(Sequence):
     def __iter__(self):
         for i in range(len(self)):
             yield self[i]
-        
+
 def load_missing_test_data(directory, size):
     train_df, test_df = load_data(directory, size)
 
@@ -152,9 +199,9 @@ def load_image(image_path, target_size):
     # except:
     #     print(image_path)
     #     return None
-    
+
     # print(image_array.shape)
-    
+
 
 def load_chunk_images(chunk, directory, resize):
     chunk_index, data = chunk
@@ -162,9 +209,9 @@ def load_chunk_images(chunk, directory, resize):
     image_paths = np.empty((1, 128, 128, 3), int)
 
     pbar = tqdm(desc='chunk {}'.format(chunk_index), total=total_images, position=chunk_index)
-    
-    for index, row in data.iterrows():        
-        
+
+    for index, row in data.iterrows():
+
         image_array = load_image(row['path'])
         if image_array is not None:
             image_array = image_array.reshape(1, 128, 128, 3)
@@ -189,7 +236,7 @@ def load_test_images(directory, resize):
     prod = partial(load_chunk_images, directory=directory, resize=resize)
     images = np.array(pool.map(prod, chunks))
     new_images = images.reshape(-1, 128, 128, 3)
-    
+
     assert(np.array_equal(images[0][0],new_images[0]))
     print(images.shape)
 
