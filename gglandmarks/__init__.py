@@ -1,3 +1,3 @@
 from gglandmarks import datasets
 from gglandmarks import models
-# from app import utils
+from gglandmarks import utils

@@ -5,3 +5,5 @@
 *.npz
 __pycache__/
 *.py[cod]
+/logs
+/data/mnist_tutorial

@@ -1,11 +1,12 @@
 import tensorflow as tf
-from gglandmarks.utils import write_log
-from keras.callbacks import TensorBoard
+from gglandmarks.utils import TensorboardLogger
 import os
-from time import time
+import time
 
-log_dir = os.path.join('./logs', 'tests', str(time()))
-tensorboard = TensorBoard(log_dir=log_dir)
-names=['a', 'b']
-values=[0, 1]
-write_log(tensorboard, names, values, 0)
+log_dir = os.path.join('./logs', 'tests')
+logger = TensorboardLogger(log_dir)
+
+for i in range(100_000):
+    logger.log_scalar('my value', i/10, i)
+
+    time.sleep(0.1)
