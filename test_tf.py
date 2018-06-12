@@ -1,6 +1,9 @@
 import tensorflow as tf
+import os
 
 LOGDIR = './data/mnist_tutorial/'
+SPRITES = os.path.join(os.getcwd(), 'sprite_1024.png')
+LABELS = os.path.join(os.getcwd(), 'labels_1024.tsv')
 
 mnist = tf.contrib.learn.datasets.mnist.read_data_sets(train_dir=LOGDIR + "data", one_hot=True)
 
@@ -30,6 +33,7 @@ def fc_layer(input, channels_in, channels_out, name='fc'):
         return act
 
 def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
+    tf.reset_default_graph()
     x = tf.placeholder(tf.float32, shape=[None, 784], name='x')
     y = tf.placeholder(tf.float32, shape=[None, 10], name='labels')
     x_image = tf.reshape(x, [-1, 28, 28, 1])
@@ -39,14 +43,19 @@ def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
         conv1 = conv_layer(x_image, 1, 32, 'conv1')
         conv_out = conv_layer(conv1, 32, 64, 'conv2')
     else:
-        conv_out = conv_layer(x_image, 1, 32, 'conv1')
+        conv_out = conv_layer(x_image, 1, 16, 'conv1')
 
     flattened = tf.reshape(conv_out, [-1, 7 * 7 * 64])
 
     if two_fc_layer:
         fc1 = fc_layer(flattened, 7 * 7 * 64, 1024, name='fc1')
-        logits = fc_layer(fc1, 1024, 10, 'fc2')
+        relu = tf.nn.relu(fc1)
+        embedding_input = relu
+        embedding_size = 1024
+        logits = fc_layer(relu, 1024, 10, 'fc2')
     else:
+        embedding_input = flattened
+        embedding_size = 7 * 7 * 64
         logits = fc_layer(flattened, 7 * 7 * 64, 10, 'fc1')
 
     with tf.name_scope('loss'):
@@ -63,22 +72,38 @@ def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         tf.summary.scalar('accuracy', accuracy)
 
+    merged_summary = tf.summary.merge_all()
+
+    embedding = tf.Variable(tf.zeros([1024, embedding_size], name='test_embedding'))
+    assignment = embedding.assign(embedding_input)
+    saver = tf.train.Saver()
+
+    config = tf.contrib.tensorboard.plugins.projector.ProjectorConfig()
+    embedding_config = config.embeddings.add()
+    embedding_config.tensor_name = embedding.name
+    embedding_config.sprite.image_path = SPRITES
+    embedding_config.metadata_path = LABELS
+    embedding_config.sprite.single_image_dim.extend([28, 28])
+    tf.contrib.tensorboard.plugins.projector.visualize_embeddings(writer, config)
+
     with tf.Session() as sess:
-        merged_summary = tf.summary.merge_all()
+        
         writer.add_graph(sess.graph)
 
         sess.run(tf.global_variables_initializer())
 
-        for i in range(500):
+        for i in range(100):
             batch = mnist.train.next_batch(100)
-
+            # print(batch[0].shape)
+            # print(batch[1].shape)
             if i % 5 == 0:
-                s = sess.run(merged_summary, feed_dict={x: batch[0], y: batch[1]})
+                s, train_loss, train_accuracy = sess.run([merged_summary, loss, accuracy], feed_dict={x: batch[0], y: batch[1]})
                 writer.add_summary(s, i)
+                print('step %d, loss %g, training accuracy %g' % (i, train_loss, train_accuracy))
 
             if i % 10 == 0:
-                [train_loss, train_accuracy] = sess.run([loss, accuracy], feed_dict={x: batch[0], y: batch[1]})
-                print('step %d, loss %g, training accuracy %g' % (i, train_loss, train_accuracy))
+                sess.run(assignment, feed_dict={x: mnist.test.images[:1024], y: mnist.test.labels[:1024]})                
+                saver.save(sess, os.path.join(writer.get_logdir(), 'my-model.ckpt'), i)
 
             sess.run(train_step, feed_dict={x: batch[0], y: batch[1]})
 

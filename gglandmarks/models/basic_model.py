@@ -10,23 +10,10 @@ import numpy as np
 from tqdm import tqdm
 from .abstract_model import AbstractModel
 
-class MyBasicModel(AbstractModel):
+class MyBasicModel(object):
     def __init__(self, input_shape, num_classes, weight_cache_folder=os.getcwd()):
         super().__init__(input_shape, num_classes, weight_cache_folder)
 
     def create_model(self, input_shape, num_classes):
-        # Create your own input format (here 3x200x200)
-        input = Input(shape=input_shape, name='input')
-        
-        # Add the fully-connected layers
-        x = Flatten(name='flatten')(input)
-        x = Dense(4096, activation='relu', name='fc1')(x)
-        x = Dense(num_classes, activation='sigmoid', name='predictions')(x)
-
-        # Create your own model
-        model = Model(inputs=input, outputs=x)
-        model.compile(loss='categorical_crossentropy',
-                      optimizer='rmsprop',
-                      metrics=['accuracy'])
-
-        return model
+ 
+       
