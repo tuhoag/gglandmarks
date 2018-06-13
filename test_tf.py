@@ -9,6 +9,7 @@ mnist = tf.contrib.learn.datasets.mnist.read_data_sets(train_dir=LOGDIR + "data"
 
 def conv_layer(input, channels_in, channels_out, name='conv'):
     with tf.name_scope(name):
+        
         w = tf.Variable(tf.truncated_normal([5, 5, channels_in, channels_out]), name='W')
         b = tf.Variable(tf.constant(0.1, shape=[channels_out]), name='B')
         conv = tf.nn.conv2d(input, w, strides=[1, 1, 1, 1], padding='SAME')
@@ -58,19 +59,20 @@ def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
         embedding_size = 7 * 7 * 64
         logits = fc_layer(flattened, 7 * 7 * 64, 10, 'fc1')
 
-    with tf.name_scope('loss'):
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-            logits = logits, labels=y
-        ))
-        tf.summary.scalar('loss', loss)
+    with tf.name_scope('metrics'):
+        with tf.name_scope('loss'):
+            loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+                logits = logits, labels=y
+            ))
+            tf.summary.scalar('loss', loss)
+
+        with tf.name_scope('accuracy'):
+            correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+            tf.summary.scalar('accuracy', accuracy)
 
     with tf.name_scope('train'):
         train_step = tf.train.AdamOptimizer(1e-4).minimize(loss)
-
-    with tf.name_scope('accuracy'):
-        correct_prediction = tf.equal(tf.argmax(logits, 1), tf.argmax(y, 1))
-        accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        tf.summary.scalar('accuracy', accuracy)
 
     merged_summary = tf.summary.merge_all()
 
@@ -116,7 +118,7 @@ def main():
             for two_fc_layer in [True, False]:
                 hparam_str = make_hparam_string(learning_rate, two_conv_layer, two_fc_layer)
                 print(hparam_str)
-                writer = tf.summary.FileWriter('./logs/mnist_demo/' + hparam_str)
+                writer = tf.summary.FileWriter('./logs/mnist_tf/' + hparam_str)
 
                 mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer)
 
