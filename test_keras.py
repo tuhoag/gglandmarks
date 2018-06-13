@@ -14,17 +14,17 @@ mnist = tf.contrib.learn.datasets.mnist.read_data_sets(train_dir=LOGDIR + "data"
 
 def conv_layer(input, channels_in, channels_out, name='conv'):
     with tf.name_scope(name):
-        conv = Conv2D(channels_out, 
+        conv = Conv2D(channels_out,
             kernel_size=(5, 5),
-            strides=(1, 1), 
+            strides=(1, 1),
             padding='same',
             use_bias=True,
             kernel_initializer=TruncatedNormal(),
             bias_initializer=Constant(0.1),
             activation='relu')(input)
         pool = MaxPooling2D(pool_size=(2, 2), strides=(1, 1), padding='same')(conv)
-        
-        return pool        
+
+        return pool
 
 def fc_layer(input, channels_in, channels_out, name='fc'):
     with tf.name_scope(name):
@@ -32,14 +32,13 @@ def fc_layer(input, channels_in, channels_out, name='fc'):
             use_bias=True,
             kernel_initializer=TruncatedNormal(),
             bias_initializer=Constant(0.1))(input)
-        
+
         return act
 
-def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):    
+def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
     x = Input(shape=(784,))
     x_image = Reshape((28, 28, 1))(x)
 
-    # tf.summary.image('input', x_image, 3)
 
     if two_conv_layer:
         conv1 = conv_layer(x_image, 1, 32, 'conv1')
@@ -47,13 +46,13 @@ def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
     else:
         conv_out = conv_layer(x_image, 1, 16, 'conv1')
 
-    flattened = Flatten()(conv_out)    
+    flattened = Flatten()(conv_out)
 
     if two_fc_layer:
         fc1 = fc_layer(flattened, 7 * 7 * 64, 1024, name='fc1')
-        relu = Activation('relu')(fc1)        
+        relu = Activation('relu')(fc1)
         logits = fc_layer(relu, 1024, 10, 'fc2')
-    else:        
+    else:
         logits = fc_layer(flattened, 7 * 7 * 64, 10, 'fc1')
 
     logits = Activation('softmax')(logits)
@@ -68,7 +67,7 @@ def mnist_model(learning_rate, two_conv_layer, two_fc_layer, writer):
 
     for i in range(100):
         batch = mnist.train.next_batch(100)
-        
+
         results = model.train_on_batch(batch[0], batch[1])
 
         if i % 5 == 0:

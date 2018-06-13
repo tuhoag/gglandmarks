@@ -11,9 +11,8 @@ from tqdm import tqdm
 from .abstract_model import AbstractModel
 
 class MyBasicModel(object):
-    def __init__(self, input_shape, num_classes, weight_cache_folder=os.getcwd()):
-        super().__init__(input_shape, num_classes, weight_cache_folder)
+    def __init__(self, input_shape, num_classes):
+        pass
 
     def create_model(self, input_shape, num_classes):
- 
-       
+        pass
