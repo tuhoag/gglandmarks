@@ -5,7 +5,7 @@ from sklearn.preprocessing import LabelEncoder
 class Encoder(object):
     def __init__(self, classes):
         self.label_encoder = LabelEncoder()
-        self.label_encoder.fit(classes)        
+        self.label_encoder.fit(classes)
 
     def encode(self, data):
         Y = self.label_encoder.transform(data)
@@ -13,8 +13,16 @@ class Encoder(object):
 
         return Y
 
-    def decode(self, data):        
-        idxes = np.argmax(data, axis=1)        
+    def class_to_label(self, classes):
+        labels = self.label_encoder.transform(classes)
+
+        print(classes[0:5])
+        print(labels[0:5])
+
+        return labels
+
+    def decode(self, data):
+        idxes = np.argmax(data, axis=1)
         return self.label_encoder.inverse_transform(idxes)
 
     @property

@@ -36,8 +36,8 @@ class DataGenerator(object):
         # print(self.encoder.classes_)
         # print(batch_landmarks)
         Y = self.encoder.encode(batch_landmarks)
-        
-        # print('transform: {}'.format(Y))        
+
+        # print('transform: {}'.format(Y))
         self.current_idx += 1
 
         return np.asarray(X_temp), Y

@@ -107,16 +107,17 @@ class GoogleLandmarkDataset(object):
         """
 
         encoder = Encoder(landmarks)
-        
+        # print(len(encoder.classes_))
         return encoder
 
-    def get_train_validation_generator(self, batch_size, target_size, validation_size):
+    def get_train_validation_generator(self, batch_size, target_size, validation_size, output_type='generator'):
         """Get train and validation generators
 
         Arguments:
             batch_size [int] -- Batch size
             target_size [tuple(width, height)] -- Tuple of image width and height
             validation_size [type] -- Percentage of validation set
+            output_type [string] -- 'generator' or 'dataset'. The former is normal Python generator while the latter is the tf dataset
 
         Returns:
             (DataGenerator, DataGenerator) -- Train and validation generator
@@ -130,16 +131,46 @@ class GoogleLandmarkDataset(object):
 
         while(True):
             train_path, test_path, train_landmark, test_landmark = train_test_split(paths, landmarks, test_size=validation_size)
-
-            data_gen = self.data_generator(batch_size, target_size)
+            print('finish splitting train & validation')
+            data_gen = self.data_generator(batch_size, target_size, output_type)
 
             yield data_gen(train_path, train_landmark), data_gen(test_path, test_landmark)
 
-    def data_generator(self, batch_size, target_size):
+    def data_generator(self, batch_size, target_size, output_type):
         def create_data_generator(paths, landmarks):
             return DataGenerator(paths, landmarks, self.encoder, batch_size, target_size)
 
-        return create_data_generator
+        def create_data_set(paths, landmarks):
+            labels = self.encoder.class_to_label(landmarks)
+            dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size)
+
+            return dataset
+
+        def _parse(image_path, label):
+            # print(image_path)
+            image_string = tf.read_file(image_path)
+            # image_decoded = tf.image.decode_image(image_string, channels=3)
+            image_decoded = tf.cond(
+                tf.image.is_jpeg(image_string),
+                lambda: tf.image.decode_jpeg(image_string, channels=3),
+                lambda: tf.image.decode_png(image_string, channels=3))
+
+            image_resized = tf.image.resize_images(image_decoded, target_size)
+
+            # one_hot_label = tf.py_func(_encode, [landmark], tf.int64)
+            # return image_decoded, landmark
+            return image_resized, label
+
+        def _encode(landmark):
+            return np.array([0, 0, 1])
+
+        if output_type == 'generator':
+            return create_data_generator
+        elif output_type == 'dataset':
+            return create_data_set
+        else:
+            raise AttributeError('Output type must be generator or dataset')
+
 
 class GoogleLandmarkTestGenerator(Sequence):
     def __init__(self, directory, size, batch_size, target_size):

@@ -14,15 +14,14 @@ from .abstract_model import AbstractModel
 class MyBasicModel(object):
     def __init__(self, batch_shape, num_classes, logdir):
         self.name = 'basic-model'
-        self.batch_shape = batch_shape        
+        self.batch_shape = batch_shape
         self.image_shape = (batch_shape[1], batch_shape[2])
         self.num_classes = num_classes
-        self.logdir = os.path.join(logdir + self.name)        
+        self.logdir = os.path.join(logdir + self.name)
 
     def conv_layer(self, input, channels_out, name='conv'):
         with tf.name_scope(name):
             channels_in = input.get_shape().as_list()[-1]
-            print(channels_in)
             w = tf.Variable(tf.truncated_normal([5, 5, channels_in, channels_out]), name='W')
             b = tf.Variable(tf.constant(0.1, shape=[channels_out]), name='B')
             conv = tf.nn.conv2d(input, w, strides=[1, 1, 1, 1], padding='SAME')
@@ -50,6 +49,17 @@ class MyBasicModel(object):
 
             return act
 
+    def __model_fn(self, X, Y, mode, params):
+        # 1. build input
+
+        # 2. forward
+        # the number of conv layer
+
+        # the number of dense layer
+
+        # 3.
+        pass
+
     def fit(self, dataset):
         X = tf.placeholder(dtype=tf.float32,
             shape=self.batch_shape,
@@ -68,7 +78,7 @@ class MyBasicModel(object):
 
         dense1 = self.fc_layer(flatten, 1024, activation= tf.nn.relu, name='fc1')
         Y_hat = self.fc_layer(dense1, self.num_classes, activation=tf.nn.sigmoid, name='fc2')
-        
+
         print('label shape: {}'.format(Y.shape))
         print('output shape: {}'.format(Y_hat.shape))
         loss = tf.losses.sigmoid_cross_entropy(multi_class_labels=Y, logits=Y_hat)
@@ -80,11 +90,11 @@ class MyBasicModel(object):
         correct_prediction = tf.equal(tf.argmax(Y_hat, 1), tf.argmax(Y, 1))
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
         # accuracy = tf.metrics.accuracy(labels=tf.argmax(Y, 1), predictions=tf.argmax(Y_hat, 1))
-        
+
         merged_summary = tf.summary.merge_all()
         dataset_generator = dataset.get_train_validation_generator(
             batch_size=32,
-            target_size=self.image_shape, 
+            target_size=self.image_shape,
             validation_size=0.1)
 
         with tf.Session() as sess:
@@ -92,7 +102,7 @@ class MyBasicModel(object):
             writer.add_graph(sess.graph)
             sess.run(tf.global_variables_initializer())
 
-            for i in range(10):                
+            for i in range(10):
                 train_gen, val_gen = next(dataset_generator)
                 step = 0
                 total_loss = 0
