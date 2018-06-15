@@ -64,7 +64,7 @@ class GoogleLandmarkDataset(object):
         print('train after remove: {}'.format(new_train_df.shape))
         new_train_df = new_train_df[new_train_df['path'] != '']
 
-        new_train_df.to_csv('temp.csv')
+        # new_train_df.to_csv('temp.csv')
 
         return new_train_df
 
@@ -142,7 +142,7 @@ class GoogleLandmarkDataset(object):
 
         def create_data_set(paths, landmarks):
             labels = self.encoder.class_to_label(landmarks)
-            dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size)
+            dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
 
             return dataset
 

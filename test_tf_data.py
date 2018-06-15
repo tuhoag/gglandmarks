@@ -35,7 +35,7 @@ X, Y = train_iter.get_next()
 with tf.Session() as sess:
     sess.run(train_iter.initializer)
 
-    # while True:
-    X_val, Y_val = sess.run([X, Y])
-    print(X_val.shape)
-    print(Y_val.shape)
+    while True:
+        X_val, Y_val = sess.run([X, Y])
+        print(X_val.shape)
+        print(Y_val.shape)

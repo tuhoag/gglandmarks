@@ -36,4 +36,4 @@ print(dataset.train_df.shape)
 print(dataset.num_classes)
 
 model = MyBasicModel(batch_shape, dataset.num_classes, logdir='./logs/')
-model.fit(dataset)
+model.fit2(dataset)
