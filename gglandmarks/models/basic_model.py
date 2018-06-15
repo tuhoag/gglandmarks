@@ -90,9 +90,8 @@ class MyBasicModel(object):
                 total_loss = 0
                 num_batches = 0
                 try:
-                    while True:
-                        start = timeit.default_timer()
-
+                    while True:                   
+                        start = timeit.default_timer() 
                         step += 1
                         num_batches += 1
                         if step % 10 == 0:
@@ -100,9 +99,10 @@ class MyBasicModel(object):
                             writer.add_summary(s)
 
                         _, train_loss, train_accuracy, train_X, train_Y = sess.run([optimizer, loss, accuracy, X, Y])
-                        end = timeit.default_timer()
+                        end = timeit.default_timer()                        
                         print('{} - X shape {} - Y shape {}'.format(step, train_X.shape, train_Y.shape))
                         print('{}, train loss: {}, train accuracy: {} - time: {:.2f}'.format(i, train_loss, train_accuracy, end-start))
+                        
 
                 except tf.errors.OutOfRangeError as err:
                     print('end epoch: {}'.format(i))
@@ -157,14 +157,19 @@ class MyBasicModel(object):
                 train_gen, val_gen = next(dataset_generator)
                 step = 0
                 total_loss = 0
-                for batch in train_gen:
-                    start = timeit.default_timer()
-                    print('{} - X shape {} - Y shape {}'.format(step, batch[0].shape, batch[1].shape))
+                train_iter = iter(train_gen)
+                while(True):                    
+                    start_total = start = timeit.default_timer()
+                    batch = next(train_iter)                
+                    end = timeit.default_timer()
+                    print('{} - X shape {} - Y shape {}, time={}'.format(step, batch[0].shape, batch[1].shape, end-start))
                     step += 1
+                    start = timeit.default_timer()
                     s, train_loss, train_accuracy = sess.run([merged_summary, loss, accuracy], feed_dict={X: batch[0], Y: batch[1]})
                     writer.add_summary(s, step)
                     sess.run(train_op, feed_dict={X: batch[0], Y: batch[1]})
                     total_loss += train_loss
                     end = timeit.default_timer()
-                    print('{}, train loss: {}, train accuracy: {} - time: {:.2f}'.format(
-                        i, train_loss, train_accuracy, end-start))
+                    
+                    print('{}, train loss: {}, train accuracy: {} - time: {:.2f} - total time: {:.2f}'.format(
+                        i, train_loss, train_accuracy, end-start, end-start_total))

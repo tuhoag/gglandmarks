@@ -17,7 +17,7 @@ class DataGenerator(object):
         return self
 
     def __next__(self):
-        print('{}/{}'.format(self.current_idx + 1, self.num_batches))
+        # print('{}/{}'.format(self.current_idx + 1, self.num_batches))
         if self.current_idx >= self.num_batches:
             raise StopIteration()
 
