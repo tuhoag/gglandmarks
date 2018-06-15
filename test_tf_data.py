@@ -37,5 +37,5 @@ with tf.Session() as sess:
 
     while True:
         X_val, Y_val = sess.run([X, Y])
-        print(X_val.shape)
-        print(Y_val.shape)
+        print('x val: {}'.format(X_val['image'].shape))
+        print('y val: {}'.format(Y_val.shape))

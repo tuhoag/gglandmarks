@@ -142,12 +142,17 @@ class GoogleLandmarkDataset(object):
 
         def create_data_set(paths, landmarks):
             labels = self.encoder.class_to_label(landmarks)
-            dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
+            dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
+            dataset = dataset.map(_parse)
+            dataset = dataset.batch(batch_size)
+            # dataset = dataset.prefetch(batch_size)
+            # dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
 
             return dataset
 
         def _parse(image_path, label):
-            # print(image_path)
+            print(image_path)
+
             image_string = tf.read_file(image_path)
             # image_decoded = tf.image.decode_image(image_string, channels=3)
             image_decoded = tf.cond(
@@ -159,7 +164,7 @@ class GoogleLandmarkDataset(object):
 
             # one_hot_label = tf.py_func(_encode, [landmark], tf.int64)
             # return image_decoded, landmark
-            return image_resized, label
+            return {'image': image_resized}, label
 
         def _encode(landmark):
             return np.array([0, 0, 1])
