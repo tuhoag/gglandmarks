@@ -13,14 +13,19 @@ from .abstract_model import AbstractModel
 import timeit
 import datetime
 
+
 def conv_layer(input, channels_out, name='conv'):
     with tf.variable_scope(name):
+        initializer = tf.keras.initializers.he_normal()
+
         conv = tf.layers.Conv2D(
             filters=channels_out,
             kernel_size=(5, 5),
             padding='same',
             activation=tf.nn.relu,
-            use_bias=True
+            use_bias=True,
+            bias_initializer=tf.zeros_initializer,
+            kernel_initializer=initializer
         )
         conv_value = conv(input)
         pool = tf.layers.max_pooling2d(conv_value, pool_size=(2, 2), strides=2)
@@ -30,13 +35,19 @@ def conv_layer(input, channels_out, name='conv'):
         tf.summary.histogram('weights', weights)
         tf.summary.histogram('biases', bias)
         tf.summary.histogram('activations', conv_value)
+        tf.summary.histogram('sparsity/conv', tf.nn.zero_fraction(conv_value))
+        tf.summary.histogram('sparsity/pool', tf.nn.zero_fraction(pool))
 
         return pool
 
 
 def fc_layer(input, channels_out, activation=None, name='fc'):
     with tf.variable_scope(name):
-        layer = tf.layers.Dense(channels_out, use_bias=True, activation=activation)
+        # if activation == tf.nn.relu:
+        initializer = tf.keras.initializers.he_normal()
+
+        layer = tf.layers.Dense(channels_out, use_bias=True, activation=activation,
+                                kernel_initializer=initializer, bias_initializer=tf.zeros_initializer)
         value = layer(input)
 
         weights, bias = layer.trainable_weights
@@ -44,49 +55,8 @@ def fc_layer(input, channels_out, activation=None, name='fc'):
         tf.summary.histogram('weights', weights)
         tf.summary.histogram('biases', bias)
         tf.summary.histogram('activation', value)
-
+        tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
         return value
-
-
-# def conv_layer(input, channels_out, name='conv'):
-#     with tf.variable_scope(name):
-#         channels_in = input.get_shape().as_list()[-1]
-#         w = tf.get_variable(name='W', shape=(5, 5, channels_in, channels_out), initializer=tf.zeros_initializer())
-#         b = tf.get_variable(name='B', shape=[channels_out], initializer=tf.zeros_initializer())
-#         # w = tf.get_variable(tf.truncated_normal(
-#         #     [5, 5, channels_in, channels_out]), name='W')
-#         # b = tf.get_variable(tf.constant(0.1, shape=[channels_out]), name='B')
-#         conv = tf.nn.conv2d(input, w, strides=[1, 1, 1, 1], padding='SAME')
-#         act = tf.nn.relu(conv + b)
-
-#         tf.summary.histogram('weights', w)
-#         tf.summary.histogram('biases', b)
-#         tf.summary.histogram('activations', act)
-
-#         return tf.nn.max_pool(act, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-
-
-# def fc_layer(input, channels_out, activation=None, name='fc'):
-#     with tf.variable_scope(name):
-#         channels_in = input.get_shape().as_list()[-1]
-#         w = tf.get_variable(name='W', shape=(channels_in, channels_out), initializer=tf.zeros_initializer())
-#         b = tf.get_variable(
-#             name='B', shape=[channels_out], initializer=tf.zeros_initializer())
-
-#         # w = tf.get_variable(tf.truncated_normal(
-#         #     [channels_in, channels_out]), name='W')
-#         # b = tf.get_variable(tf.constant(0.1, shape=[channels_out]), name='B')
-#         act = tf.matmul(input, w) + b
-
-#         if activation is not None:
-#             act = activation(act)
-
-#         tf.summary.histogram('weights', w)
-#         tf.summary.histogram('biases', b)
-#         tf.summary.histogram('activations', act)
-
-#         return act
-
 
 def model_fn(features, labels, mode, params):
     """[summary]
@@ -116,7 +86,8 @@ def model_fn(features, labels, mode, params):
 
     print('label shape: {}'.format(labels.shape))
     print('output shape: {}'.format(Y_hat.shape))
-    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=Y_hat)
+    loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+        labels=labels, logits=Y_hat))
 
     tf.summary.scalar('loss', loss)
 
@@ -170,7 +141,7 @@ class MyBasicModel(object):
         spec = model_fn(
             train_X, train_Y,
             mode=tf.estimator.ModeKeys.TRAIN,
-            params={'num_classes': self.num_classes, 'learning_rate': 0.01}
+            params={'num_classes': self.num_classes, 'learning_rate': 0.001}
         )
         loss = spec.loss
         train_op = spec.train_op
@@ -195,17 +166,17 @@ class MyBasicModel(object):
                         writer.add_summary(s, current_step)
                         print('current step: {}'.format(current_step))
                         print('{} - train loss: {}'.format(step, train_loss))
-                        print(
-                            'X shape: {} - Y shape: {}'.format(temp_X['image'].shape, temp_Y.shape))
+                        print('X shape: {} - Y shape: {}'.format(temp_X['image'].shape, temp_Y.shape))
                         total_loss += train_loss
 
-                        if(steps is not None and current_step >= steps):
+                        if(steps is not None and step >= steps):
                             break
 
                 except tf.errors.OutOfRangeError as err:
                     print('end epoch: {}'.format(i))
 
-                writer.add_summary(total_loss, i * step)
+                print('{} - total loss: {}'.format(i, total_loss))
+                # writer.add_summary(total_loss, i * step)
 
     def fit4(self, dataset):
         dataset_generator = dataset.get_train_validation_generator(
@@ -219,7 +190,7 @@ class MyBasicModel(object):
         eval_iter = val_dataset.make_initializable_iterator()
 
         classifier = tf.estimator.Estimator(
-            model_fn = model_fn,
+            model_fn=model_fn,
             params={
                 'learning_rate': 0.1,
                 'num_classes': self.num_classes
@@ -263,7 +234,7 @@ class MyBasicModel(object):
         dense1 = fc_layer(
             flatten, 1024, activation=tf.nn.relu, name='fc1')
         Y_hat = fc_layer(dense1, self.num_classes,
-                              activation=tf.nn.sigmoid, name='fc2')
+                         activation=tf.nn.sigmoid, name='fc2')
 
         print('label shape: {}'.format(Y.shape))
         print('output shape: {}'.format(Y_hat.shape))

@@ -25,13 +25,13 @@ num_classes = 14951
 batch_size = 64
 image_original_width = 128
 image_original_height = 128
-image_width = 48
-image_height = 48
+image_width = 128
+image_height = 128
 image_channel = 3
 batch_shape=(None, image_width, image_height, image_channel)
 
 
-dataset = GoogleLandmarkDataset(data_path, (128, 128), images_count_min=30000)
+dataset = GoogleLandmarkDataset(data_path, (image_original_width, image_original_height), images_count_min=30000)
 print(dataset.train_df.shape)
 print(dataset.num_classes)
 
