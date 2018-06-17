@@ -86,14 +86,8 @@ def model_fn(features, labels, mode, params):
 
     print('label shape: {}'.format(labels.shape))
     print('output shape: {}'.format(Y_hat.shape))
-<<<<<<< HEAD
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=labels, logits=Y_hat))
-=======
-    # entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=Y_hat)
-    # print('entropy shape: {}'.format(entropy.shape))
-    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=Y_hat)
->>>>>>> aa3dce140a9d5650181ef2f7e7b64c06082c5e69
 
     tf.summary.scalar('loss', loss)
 
@@ -187,7 +181,7 @@ class MyBasicModel(object):
 
     def fit4(self, dataset):
         dataset_generator = dataset.get_train_validation_generator(
-            batch_size=1000,
+            batch_size=500,
             target_size=self.image_shape,
             validation_size=0.1,
             output_type='dataset')
@@ -211,7 +205,7 @@ class MyBasicModel(object):
 
     def fit3(self, dataset):
         dataset_generator = dataset.get_train_validation_generator(
-            batch_size=1000,
+            batch_size=100,
             target_size=self.image_shape,
             validation_size=0.1,
             output_type='dataset')
