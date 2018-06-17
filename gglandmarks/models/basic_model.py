@@ -82,12 +82,18 @@ def model_fn(features, labels, mode, params):
     flatten = tf.layers.flatten(conv2)
 
     dense1 = fc_layer(flatten, 1024, activation=tf.nn.relu, name='fc1')
-    Y_hat = fc_layer(dense1, params['num_classes'], name='fc2')
+    Y_hat = fc_layer(dense1, params['num_classes'], activation=tf.nn.sigmoid, name='fc2')
 
     print('label shape: {}'.format(labels.shape))
     print('output shape: {}'.format(Y_hat.shape))
+<<<<<<< HEAD
     loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=labels, logits=Y_hat))
+=======
+    # entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=Y_hat)
+    # print('entropy shape: {}'.format(entropy.shape))
+    loss = tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=Y_hat)
+>>>>>>> aa3dce140a9d5650181ef2f7e7b64c06082c5e69
 
     tf.summary.scalar('loss', loss)
 
@@ -97,7 +103,7 @@ def model_fn(features, labels, mode, params):
     if mode == tf.estimator.ModeKeys.PREDICT:
         predictions = {
             'class_ids': predicted_classes[:, tf.newaxis],
-            'probabilities': tf.nn.sigmoid(Y_hat),
+            'probabilities': Y_hat,
             'logits': Y_hat
         }
 
@@ -155,6 +161,7 @@ class MyBasicModel(object):
 
             for i in range(10):
                 sess.run(train_iter.initializer)
+                sess.run(global_step.initializer)
                 step = 0
                 total_loss = 0
                 num_batches = 0
@@ -213,7 +220,7 @@ class MyBasicModel(object):
         train_iter = train_dataset.make_initializable_iterator()
         eval_iter = val_dataset.make_initializable_iterator()
 
-        self.train(lambda: train_iter, steps=10)
+        self.train(lambda: train_iter, steps=2)
 
     def fit2(self, dataset):
         dataset_generator = dataset.get_train_validation_generator(
