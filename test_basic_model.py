@@ -25,8 +25,8 @@ num_classes = 14951
 batch_size = 64
 image_original_width = 128
 image_original_height = 128
-image_width = 128
-image_height = 128
+image_width = 64
+image_height = 64
 image_channel = 3
 batch_shape=(None, image_width, image_height, image_channel)
 
