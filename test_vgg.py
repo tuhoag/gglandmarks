@@ -10,6 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from gglandmarks.datasets.google_landmarks_dataset import GoogleLandmarkTestGenerator
 from gglandmarks.models import MyDenseNet, MyVGG
+
 from gglandmarks.datasets import GoogleLandmarkDataset
 
 # load data
@@ -22,11 +23,11 @@ output_folder = './output/'
 output_path = os.path.join(output_folder, output_file_name)
 
 num_classes = 14951
-batch_size = 64
+batch_size = 32
 image_original_width = 128
 image_original_height = 128
-image_width = 64
-image_height = 64
+image_width = 48
+image_height = 48
 image_channel = 3
 batch_shape = (None, image_width, image_height, image_channel)
 
@@ -37,4 +38,4 @@ print(dataset.train_df.shape)
 print(dataset.num_classes)
 
 model = MyVGG(batch_shape=batch_shape, num_classes = dataset.num_classes, log_dir='./logs/', model_dir='./models/')
-model.fit(dataset)
+model.train(dataset)

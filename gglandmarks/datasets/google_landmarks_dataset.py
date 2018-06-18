@@ -144,8 +144,9 @@ class GoogleLandmarkDataset(object):
             labels = self.encoder.class_to_label(landmarks)
             dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
             dataset = dataset.map(_parse)
-            dataset = dataset.batch(batch_size)
-            # dataset = dataset.prefetch(batch_size)
+            dataset = dataset.shuffle(batch_size)
+            dataset = dataset.batch(batch_size)            
+            dataset = dataset.prefetch(batch_size)
             # dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
 
             return dataset

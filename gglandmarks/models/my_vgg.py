@@ -3,6 +3,7 @@ import os
 import datetime
 from tensorflow.python import debug as tf_debug
 
+
 def _conv_block(input, conv_nums, channels_out, kernel_size=(3, 3), padding='same', activation=tf.nn.relu, name='conv-block'):
     """[summary]
 
@@ -42,7 +43,8 @@ def _conv_block(input, conv_nums, channels_out, kernel_size=(3, 3), padding='sam
             tf.summary.histogram('weights', weights)
             tf.summary.histogram('biases', bias)
             tf.summary.histogram('activations', conv_input)
-            tf.summary.histogram('sparsity/conv', tf.nn.zero_fraction(conv_input))
+            tf.summary.histogram(
+                'sparsity/conv', tf.nn.zero_fraction(conv_input))
 
         pool = tf.layers.max_pooling2d(
             conv_input, pool_size=(2, 2), strides=2, name='max-pooling')
@@ -67,6 +69,7 @@ def fc_layer(input, channels_out, activation=None, name='fc'):
         tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
         return value
 
+
 def _my_vgg_model_fn(features, labels, mode, params):
     """[summary]
 
@@ -85,11 +88,17 @@ def _my_vgg_model_fn(features, labels, mode, params):
 
     tf.summary.image('input', X, 3)
 
-    conv_out = _conv_block(input = X, conv_nums=2, kernel_size=(3, 3), channels_out=64)
+    conv_out = X
 
+    conv_nums = [2, 2, 3, 3, 3]
+    conv_channels_outs = [64, 128, 256, 512, 512]
+
+    for i in range(len(conv_nums)):
+        conv_out = _conv_block(input = conv_out, conv_nums=conv_nums[i], channels_out=conv_channels_outs[i], name='conv-block-' + str(i))
+    
     flatten = tf.layers.flatten(conv_out)
 
-    dense1 = fc_layer(flatten, 4096, activation=tf.nn.relu, name='fc1')
+    dense1 = fc_layer(flatten, 2048, activation=tf.nn.sigmoid, name='fc1')
     Y_hat = fc_layer(dense1, params['num_classes'],
                      activation=None, name='fc2')
 
@@ -103,34 +112,41 @@ def _my_vgg_model_fn(features, labels, mode, params):
 
     predicted_classes = tf.argmax(Y_hat, 1)
 
-    correct_prediction = tf.equal(predicted_classes, labels)
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-    metrics = {
-        'accuracy': accuracy
-    }
-    tf.summary.scalar('accuracy', accuracy)
-
-    train_op = tf.train.GradientDescentOptimizer(
-        learning_rate=params['learning_rate']).minimize(loss, global_step=tf.train.get_global_step())
-
     # prediction
-    if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = {
+    predictions = {
             'class_ids': predicted_classes[:, tf.newaxis],
             'probabilities': Y_hat,
             'logits': Y_hat
         }
-
+    if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
+
+    accuracy = tf.metrics.accuracy(labels=labels,
+                               predictions=predicted_classes,
+                               name='acc_op')
+    
+    metrics = {'accuracy': accuracy}
+    tf.summary.scalar('accuracy', accuracy[1])
 
     # evaluation
     if mode == tf.estimator.ModeKeys.EVAL:
-        return tf.estimator.EstimatorSpec(mode, loss=loss, eval_metric_ops=metrics)
+        return tf.estimator.EstimatorSpec(
+            mode, loss=loss, eval_metric_ops=metrics)
+    
+    train_op = tf.train.GradientDescentOptimizer(
+        learning_rate=params['learning_rate']).minimize(loss, global_step=tf.train.get_global_step())
 
     # train
     if mode == tf.estimator.ModeKeys.TRAIN:
         return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
+
+    return tf.estimator.EstimatorSpec(
+        mode,
+        loss = loss,
+        eval_metric_ops=metrics,
+        predictions=predictions,        
+        train_op=train_op
+    )    
 
 class MyVGG(object):
     def __init__(self, batch_shape, model_dir, log_dir, num_classes):
@@ -141,61 +157,95 @@ class MyVGG(object):
         self.log_dir = os.path.join(log_dir, self.name)
         self.num_classes = num_classes
 
-    def train(self, input_fn, steps=None):
-        global_step = tf.get_variable(
+    def import_data(self, dataset, batch_size, target_size, validation_split=0.1, output_type='dataset'):
+        dataset_generator = dataset.get_train_validation_generator(
+            batch_size=batch_size,
+            target_size=target_size,
+            validation_size=validation_split,
+            output_type=output_type)
+
+        train_dataset, val_dataset = next(dataset_generator)
+
+        iterator = tf.data.Iterator.from_structure(train_dataset.output_types, 
+                                                   train_dataset.output_shapes)
+
+        features, labels = iterator.get_next()
+        # self.X = features['image']
+
+        self.train_iter = iterator.make_initializer(train_dataset)
+        self.eval_iter = iterator.make_initializer(val_dataset)
+
+        return features, labels    
+        
+    def build(self, dataset, batch_size, target_size, num_classes, learning_rate):
+        features, labels = self.import_data(dataset, batch_size, target_size)
+
+        self.global_step = tf.get_variable(
             name='global_step', trainable=False, initializer=tf.constant(0))
 
-        # train
-        train_iter = input_fn()
-        train_X, train_Y = train_iter.get_next()
-        spec = _my_vgg_model_fn(
-            train_X, train_Y,
-            mode=tf.estimator.ModeKeys.TRAIN,
-            params={'num_classes': self.num_classes, 'learning_rate': 0.001}
-        )
-        loss = spec.loss
-        train_op = spec.train_op
+        self.spec = _my_vgg_model_fn(features, labels, mode=None, params={
+            'num_classes': num_classes,
+            'learning_rate': learning_rate
+        })
+        
+
+    def train_one_epoch(self, input_fn, writer, current_step, session, steps=None):        
+        # train        
+        train_init = input_fn()        
+        loss = self.spec.loss
+        train_op = self.spec.train_op
+        merged_summary = tf.summary.merge_all()        
+
+        session.run(train_init)
+
+        step = 0
+        total_loss = 0
+        try:
+            while True:                
+                step += 1
+                train_loss, _, s, current_step = session.run(
+                    [loss, train_op, merged_summary, self.global_step])                
+                writer.add_summary(s, current_step)
+                print('current step: {}'.format(current_step))
+                print('{} - train loss: {}'.format(step, train_loss))
+                total_loss += train_loss
+
+                if(steps is not None and step >= steps):
+                    break
+
+        except tf.errors.OutOfRangeError as err:
+            print('end epoch:')
+
+        return total_loss, current_step
+
+    def predict(self, input_fn):
+        pass
+
+    def evaluate(self, input_fn, writer, current_step, session, steps=None):
         merged_summary = tf.summary.merge_all()
+        eval_init = input_fn()        
+        metrics_ops = self.spec.eval_metric_ops
 
-        with tf.Session() as sess:
-            sess = tf_debug.TensorBoardDebugWrapperSession(
-                sess, "localhost:7000")
-            writer = tf.summary.FileWriter(os.path.join(
-                self.log_dir, str(datetime.datetime.now())))
-            sess.run(tf.global_variables_initializer())
-            writer.add_graph(sess.graph)
+        session.run(eval_init)
 
-            for i in range(10):
-                sess.run(train_iter.initializer)
-                sess.run(global_step.initializer)
-                step = 0
-                total_loss = 0
-                num_batches = 0
-                try:
-                    while True:
-                        step += 1
-                        temp_X, temp_Y, train_loss, _, s, current_step = sess.run(
-                            [train_X, train_Y, loss, train_op, merged_summary, global_step])
-                        writer.add_summary(s, current_step)
-                        print('current step: {}'.format(current_step))
-                        print('{} - train loss: {}'.format(step, train_loss))
-                        print(
-                            'X shape: {} - Y shape: {}'.format(temp_X['image'].shape, temp_Y.shape))
-                        total_loss += train_loss
+        step = 0
+        total_accuracy = 0
+        try:
+            while True:
+                step += 1
+                s, metrics = session.run([merged_summary, metrics_ops])                
+                writer.add_summary(s, current_step)
+                print('current step: {}'.format(current_step))
+                print('metrics: {}'.format(metrics))
+                total_accuracy += metrics['accuracy'][1]
 
-                        if(steps is not None and step >= steps):
-                            break
+                if(steps is not None and step >= steps):
+                    break
 
-                except tf.errors.OutOfRangeError as err:
-                    print('end epoch: {}'.format(i))
+        except tf.errors.OutOfRangeError as err:
+            print('end epoch')
 
-                print('{} - total loss: {}'.format(i, total_loss))
-
-    def predict(self):
-        pass
-
-    def evaluate(self):
-        pass
+        return total_accuracy
 
     def save(self):
         pass
@@ -203,15 +253,42 @@ class MyVGG(object):
     def load(self):
         pass
 
+    def train(self, dataset, epochs=10):            
+        writer_path = os.path.join(self.log_dir, str(datetime.datetime.now()))
+        train_writer = tf.summary.FileWriter(writer_path + '-train')
+        eval_writer = tf.summary.FileWriter(writer_path + '-eval')
+
+        current_step = 0
+        total_losses = []
+        total_accuracies = []
+        max_steps = 10
+        self.build(dataset, 50, self.image_shape, self.num_classes, 0.001)
+        
+        with tf.Session() as sess:
+            sess.run(tf.local_variables_initializer())
+            sess.run(tf.global_variables_initializer())
+            train_writer.add_graph(sess.graph)
+            eval_writer.add_graph(sess.graph)
+
+            for i in range(epochs):
+                print("Traing epoch:{}".format(i))
+                total_loss, current_step = self.train_one_epoch(
+                    lambda: self.train_iter, current_step=current_step, writer=train_writer, steps=max_steps, session=sess)
+
+                total_losses.append(total_loss)
+
+                if i % 1 == 0:
+                    print("Evaluating epoch: {}".format(i))
+                    total_accuracy = self.evaluate(
+                        lambda: self.eval_iter, current_step=current_step, writer=eval_writer, session=sess, steps=max_steps)
+
+                total_accuracies.append(total_accuracy)
+
+            return total_losses, total_accuracies
+
     def fit(self, dataset):
-        dataset_generator = dataset.get_train_validation_generator(
-            batch_size=100,
-            target_size=self.image_shape,
-            validation_size=0.1,
-            output_type='dataset')
-
-        train_dataset, val_dataset = next(dataset_generator)
-        train_iter = train_dataset.make_initializable_iterator()
-        eval_iter = val_dataset.make_initializable_iterator()
-
-        self.train(lambda: train_iter, steps=2)
+        learning_rates = [0.0001, 0.001, 0.01]
+        conv_nums = []
+        conv_channels_out = []
+        
+        pass
