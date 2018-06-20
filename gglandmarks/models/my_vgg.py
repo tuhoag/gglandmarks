@@ -95,7 +95,7 @@ def _my_vgg_model_fn(features, labels, mode, params):
 
     for i in range(len(conv_nums)):
         conv_out = _conv_block(input = conv_out, conv_nums=conv_nums[i], channels_out=conv_channels_outs[i], name='conv-block-' + str(i))
-    
+
     flatten = tf.layers.flatten(conv_out)
 
     dense1 = fc_layer(flatten, 2048, activation=tf.nn.sigmoid, name='fc1')
@@ -115,7 +115,7 @@ def _my_vgg_model_fn(features, labels, mode, params):
     # prediction
     predictions = {
             'class_ids': predicted_classes[:, tf.newaxis],
-            'probabilities': Y_hat,
+            'probabilities': tf.nn.softmax(Y_hat),
             'logits': Y_hat
         }
     if mode == tf.estimator.ModeKeys.PREDICT:
@@ -124,7 +124,7 @@ def _my_vgg_model_fn(features, labels, mode, params):
     accuracy = tf.metrics.accuracy(labels=labels,
                                predictions=predicted_classes,
                                name='acc_op')
-    
+
     metrics = {'accuracy': accuracy}
     tf.summary.scalar('accuracy', accuracy[1])
 
@@ -132,7 +132,7 @@ def _my_vgg_model_fn(features, labels, mode, params):
     if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(
             mode, loss=loss, eval_metric_ops=metrics)
-    
+
     train_op = tf.train.GradientDescentOptimizer(
         learning_rate=params['learning_rate']).minimize(loss, global_step=tf.train.get_global_step())
 
@@ -144,15 +144,15 @@ def _my_vgg_model_fn(features, labels, mode, params):
         mode,
         loss = loss,
         eval_metric_ops=metrics,
-        predictions=predictions,        
+        predictions=predictions,
         train_op=train_op
-    )    
+    )
 
 class MyVGG(object):
-    def __init__(self, batch_shape, model_dir, log_dir, num_classes):
+    def __init__(self, image_shape, model_dir, log_dir, num_classes):
         self.name = 'my-vgg'
-        self.batch_shape = batch_shape
-        self.image_shape = (batch_shape[1], batch_shape[2])
+        # self.batch_shape = batch_shape
+        self.image_shape = image_shape
         self.model_dir = os.path.join(model_dir, self.name)
         self.log_dir = os.path.join(log_dir, self.name)
         self.num_classes = num_classes
@@ -166,7 +166,7 @@ class MyVGG(object):
 
         train_dataset, val_dataset = next(dataset_generator)
 
-        iterator = tf.data.Iterator.from_structure(train_dataset.output_types, 
+        iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
                                                    train_dataset.output_shapes)
 
         features, labels = iterator.get_next()
@@ -175,8 +175,8 @@ class MyVGG(object):
         self.train_iter = iterator.make_initializer(train_dataset)
         self.eval_iter = iterator.make_initializer(val_dataset)
 
-        return features, labels    
-        
+        return features, labels
+
     def build(self, dataset, batch_size, target_size, num_classes, learning_rate):
         features, labels = self.import_data(dataset, batch_size, target_size)
 
@@ -187,24 +187,24 @@ class MyVGG(object):
             'num_classes': num_classes,
             'learning_rate': learning_rate
         })
-        
 
-    def train_one_epoch(self, input_fn, writer, current_step, session, steps=None):        
-        # train        
-        train_init = input_fn()        
+
+    def train_one_epoch(self, input_fn, writer, current_step, session, steps=None):
+        # train
+        train_init = input_fn()
         loss = self.spec.loss
         train_op = self.spec.train_op
-        merged_summary = tf.summary.merge_all()        
+        merged_summary = tf.summary.merge_all()
 
         session.run(train_init)
 
         step = 0
         total_loss = 0
         try:
-            while True:                
+            while True:
                 step += 1
                 train_loss, _, s, current_step = session.run(
-                    [loss, train_op, merged_summary, self.global_step])                
+                    [loss, train_op, merged_summary, self.global_step])
                 writer.add_summary(s, current_step)
                 print('current step: {}'.format(current_step))
                 print('{} - train loss: {}'.format(step, train_loss))
@@ -223,7 +223,7 @@ class MyVGG(object):
 
     def evaluate(self, input_fn, writer, current_step, session, steps=None):
         merged_summary = tf.summary.merge_all()
-        eval_init = input_fn()        
+        eval_init = input_fn()
         metrics_ops = self.spec.eval_metric_ops
 
         session.run(eval_init)
@@ -233,7 +233,7 @@ class MyVGG(object):
         try:
             while True:
                 step += 1
-                s, metrics = session.run([merged_summary, metrics_ops])                
+                s, metrics = session.run([merged_summary, metrics_ops])
                 writer.add_summary(s, current_step)
                 print('current step: {}'.format(current_step))
                 print('metrics: {}'.format(metrics))
@@ -253,7 +253,7 @@ class MyVGG(object):
     def load(self):
         pass
 
-    def train(self, dataset, epochs=10):            
+    def train(self, dataset, epochs=10):
         writer_path = os.path.join(self.log_dir, str(datetime.datetime.now()))
         train_writer = tf.summary.FileWriter(writer_path + '-train')
         eval_writer = tf.summary.FileWriter(writer_path + '-eval')
@@ -263,7 +263,7 @@ class MyVGG(object):
         total_accuracies = []
         max_steps = 10
         self.build(dataset, 50, self.image_shape, self.num_classes, 0.001)
-        
+
         with tf.Session() as sess:
             sess.run(tf.local_variables_initializer())
             sess.run(tf.global_variables_initializer())
@@ -290,5 +290,5 @@ class MyVGG(object):
         learning_rates = [0.0001, 0.001, 0.01]
         conv_nums = []
         conv_channels_out = []
-        
+
         pass

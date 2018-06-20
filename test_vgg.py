@@ -37,5 +37,5 @@ dataset = GoogleLandmarkDataset(
 print(dataset.train_df.shape)
 print(dataset.num_classes)
 
-model = MyVGG(batch_shape=batch_shape, num_classes = dataset.num_classes, log_dir='./logs/', model_dir='./models/')
+model = MyVGG(image_shape=(image_width, image_height), num_classes = dataset.num_classes, log_dir='./logs/', model_dir='./models/')
 model.train(dataset)
