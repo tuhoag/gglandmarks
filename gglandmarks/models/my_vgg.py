@@ -2,7 +2,8 @@ import tensorflow as tf
 import os
 import datetime
 from tensorflow.python import debug as tf_debug
-
+from gglandmarks.datasets import GoogleLandmarkDataset
+import pandas as pd
 
 def _conv_block(input, conv_nums, channels_out, kernel_size=(3, 3), padding='same', activation=tf.nn.relu, name='conv-block'):
     """[summary]
@@ -80,27 +81,41 @@ def _my_vgg_model_fn(features, labels, mode, params):
         params {dictionary} -- Params to customize the model
             - 'num_classes': the number of output classes
             - 'learning_rate': learning rate
+            - 'conv_nums': the number of conv in each layers (vgg16 or vgg19)
+            - 'conv_channels_out': the output channels of each layers
+            - 'dense_count': the number of dense layer
+            - 'dense_weights_count': the number of weights in each dense layer
 
     Returns:
         [EstimatorSpec] -- Estimator Spec
     """
+    
     X = features['image']
 
     tf.summary.image('input', X, 3)
 
     conv_out = X
 
-    conv_nums = [2, 2, 3, 3, 3]
-    conv_channels_outs = [64, 128, 256, 512, 512]
+    conv_nums = params['conv_nums']
+    conv_channels_outs = params['conv_channels_outs']
 
     for i in range(len(conv_nums)):
         conv_out = _conv_block(input = conv_out, conv_nums=conv_nums[i], channels_out=conv_channels_outs[i], name='conv-block-' + str(i))
     
     flatten = tf.layers.flatten(conv_out)
 
-    dense1 = fc_layer(flatten, 2048, activation=tf.nn.sigmoid, name='fc1')
-    Y_hat = fc_layer(dense1, params['num_classes'],
-                     activation=None, name='fc2')
+    dense_count = params['dense_count']
+    dense_weights_count = params['dense_weights_count']
+
+    dense_out = flatten
+
+    for i in range(dense_count):        
+        dense_out = fc_layer(flatten, dense_weights_count, activation=tf.nn.sigmoid, name='fc'+str(i))
+    # dense1 = fc_layer(flatten, 2048, activation=tf.nn.relu, name='fc1')
+    # dense2 = fc_layer(dense1, 2048, activation=tf.nn.sigmoid, name='fc2')
+
+    Y_hat = fc_layer(dense_out, params['num_classes'],
+                     activation=None, name='logits')
 
     print('label shape: {}'.format(labels.shape))
     print('output shape: {}'.format(Y_hat.shape))
@@ -149,10 +164,10 @@ def _my_vgg_model_fn(features, labels, mode, params):
     )    
 
 class MyVGG(object):
-    def __init__(self, batch_shape, model_dir, log_dir, num_classes):
+    def __init__(self, input_shape, model_dir, log_dir, num_classes):
         self.name = 'my-vgg'
-        self.batch_shape = batch_shape
-        self.image_shape = (batch_shape[1], batch_shape[2])
+        # self.batch_shape = batch_shape
+        self.image_shape = (input_shape[0], input_shape[1])
         self.model_dir = os.path.join(model_dir, self.name)
         self.log_dir = os.path.join(log_dir, self.name)
         self.num_classes = num_classes
@@ -177,7 +192,7 @@ class MyVGG(object):
 
         return features, labels    
         
-    def build(self, dataset, batch_size, target_size, num_classes, learning_rate):
+    def build(self, dataset, batch_size, target_size, num_classes, learning_rate, conv_nums, conv_channels_outs, dense_count, dense_weights_count):
         features, labels = self.import_data(dataset, batch_size, target_size)
 
         self.global_step = tf.get_variable(
@@ -185,9 +200,12 @@ class MyVGG(object):
 
         self.spec = _my_vgg_model_fn(features, labels, mode=None, params={
             'num_classes': num_classes,
-            'learning_rate': learning_rate
-        })
-        
+            'learning_rate': learning_rate,
+            'conv_nums': conv_nums,
+            'conv_channels_outs': conv_channels_outs,
+            'dense_count': dense_count,
+            'dense_weights_count': dense_weights_count
+        })                    
 
     def train_one_epoch(self, input_fn, writer, current_step, session, steps=None):        
         # train        
@@ -253,17 +271,29 @@ class MyVGG(object):
     def load(self):
         pass
 
-    def train(self, dataset, epochs=10):            
-        writer_path = os.path.join(self.log_dir, str(datetime.datetime.now()))
+    def train(self, dataset, learning_rate, conv_nums, conv_channels_outs, dense_count, dense_weights_count, logname, epochs=1000):
+        """
+        """        
+        writer_path = os.path.join(self.log_dir, logname + '-' + str(datetime.datetime.now()))
         train_writer = tf.summary.FileWriter(writer_path + '-train')
         eval_writer = tf.summary.FileWriter(writer_path + '-eval')
 
         current_step = 0
         total_losses = []
         total_accuracies = []
-        max_steps = 10
-        self.build(dataset, 50, self.image_shape, self.num_classes, 0.001)
-        
+        max_steps = 10000
+        self.build(
+            dataset=dataset,
+            batch_size=50,
+            target_size=self.image_shape,
+            num_classes=self.num_classes,
+            learning_rate=learning_rate,
+            conv_nums=conv_nums,
+            conv_channels_outs=conv_channels_outs,
+            dense_count=dense_count,
+            dense_weights_count=dense_weights_count)
+
+        # self.build(dataset, 50, self.image_shape, self.num_classes, 0.001)        
         with tf.Session() as sess:
             sess.run(tf.local_variables_initializer())
             sess.run(tf.global_variables_initializer())
@@ -277,7 +307,7 @@ class MyVGG(object):
 
                 total_losses.append(total_loss)
 
-                if i % 1 == 0:
+                if i % 10 == 0:
                     print("Evaluating epoch: {}".format(i))
                     total_accuracy = self.evaluate(
                         lambda: self.eval_iter, current_step=current_step, writer=eval_writer, session=sess, steps=max_steps)
@@ -286,9 +316,52 @@ class MyVGG(object):
 
             return total_losses, total_accuracies
 
-    def fit(self, dataset):
+    @staticmethod
+    def finetune(data_path, image_original_size):
+        image_sizes = [32, 48, 84]
         learning_rates = [0.0001, 0.001, 0.01]
-        conv_nums = []
-        conv_channels_out = []
+        conv_nums = [
+            [2, 2, 3, 3, 3],
+            [2, 2, 4, 4, 4]
+        ]
         
-        pass
+        conv_channels_outs = [64, 128, 256, 512, 512]
+
+        dense_weights_counts = [
+            1024, 2048
+        ]
+
+        dense_counts = [1, 2]
+
+        images_count_mins = [
+            100, 500, 1000, 5000, 10000, 500000
+        ]
+
+        i = 0
+        stats_file = open('./output/fine_tune-' + str(datetime.datetime.now()) +'.csv', 'w')
+        stats_file.write('learning_rate,images_count_min,num_classes,image_size,conv_num,dense_weights_count,dense_count,loss,accuracy\n')
+        # for i in range(5):
+        #     df.loc[i] = [np.random.randint(-1,1) for n in range(3)]
+        try:
+            for learning_rate in learning_rates:
+                for images_count_min in images_count_mins:
+                    for image_size in image_sizes:
+                        for conv_num in conv_nums:
+                            for dense_weights_count in dense_weights_counts:
+                                for dense_count in dense_counts:
+                                    tf.reset_default_graph()
+
+                                    dataset = GoogleLandmarkDataset(
+                                    data_path, (image_original_size[0], image_original_size[1]), images_count_min=images_count_min)
+                                    print(dataset.train_df.shape)
+                                    print(dataset.num_classes)
+
+                                    logname = 'lr={}-icm={}-c={}-s={}-cn={}-dwc={}-dc={}'.format(learning_rate, images_count_min, dataset.num_classes, image_size, conv_num, dense_weights_count, dense_count)
+                                    print(logname)
+                                    model = MyVGG(input_shape=(image_size, image_size), num_classes = dataset.num_classes, log_dir='./logs/', model_dir='./models/')
+                                    total_losses, total_accuracies = model.train(dataset, learning_rate, conv_num, conv_channels_outs, dense_count, dense_weights_count, logname)
+                                    stats_file.write('{},{},{},{},"{}",{},{},{},{}\n'.format(learning_rate, images_count_min, dataset.num_classes, image_size, conv_num, dense_weights_count, dense_count, total_losses, total_accuracies))                                
+                                    i = i + 1
+        except Exception as e:
+            print(e)
+            stats_file.close()

@@ -27,13 +27,13 @@ DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
 NUMBER_OF_SAMPLES = 1000
 
 class GoogleLandmarkDataset(object):
-    def __init__(self, directory, size, images_count_min=None, is_clean_data=True):
+    def __init__(self, directory, size, images_count_min=None):
         self.train_df, self.test_df = load_data(directory, size)
         self.size = size
         self.images_count_min = images_count_min
 
         print('train before clean: {}'.format(self.train_df.shape))
-        if is_clean_data:
+        if images_count_min is not None:
             self.train_df = self.clean_train_data(self.train_df, self.images_count_min)
             print('train after clean: {}'.format(self.train_df.shape))
 
