@@ -2,6 +2,7 @@ import tensorflow as tf
 from .tf_base_model import TFBaseModel
 import os
 from gglandmarks.datasets import GoogleLandmarkDataset
+import datetime
 
 def _input_layer(features, name='input'):
     with tf.variable_scope(name):
@@ -9,7 +10,6 @@ def _input_layer(features, name='input'):
         tf.summary.image('input', X, 3)
 
         return X
-
 
 def _conv_layer(input, kernel_size, filters, padding='same', strides=(1, 1), activation=tf.nn.relu, batch_norm=True, name='conv'):
     with tf.variable_scope(name):
@@ -39,10 +39,10 @@ def _conv_layer(input, kernel_size, filters, padding='same', strides=(1, 1), act
         else:
             output = batch_out
 
-        weights, bias = conv.trainable_weights
+        weights = conv.trainable_weights
 
         tf.summary.histogram('weights', weights)
-        tf.summary.histogram('biases', bias)
+        # tf.summary.histogram('biases', bias)
         tf.summary.histogram(
             'sparsity/conv', tf.nn.zero_fraction(conv_out))
         tf.summary.histogram('batch_output', batch_out)
@@ -140,13 +140,13 @@ def _convolution_block_layer(input, f, filters, s, name):
 
         shortcut = _conv_layer(input=input,
                                kernel_size=(1, 1),
-                               filters=filters[3],
+                               filters=filters[2],
                                strides=(s, s),
                                padding='valid',
                                activation=None,
                                name='shortcut')
 
-        X = tf.add(input, shortcut)
+        X = tf.add(X, shortcut)
         X = tf.nn.relu(X)
 
         return X
@@ -168,61 +168,67 @@ def _inference(features, classes):
 
     # Stage 2
     filters = [
+        [],
+        [],
         [64, 64, 256],
         [128, 128, 512],
         [256, 256, 1024],
         [512, 512, 2048],
     ]
+    strides = [0, 0, 1, 2, 2, 2]
+    kernel_sizes = [0, 0, 3, 3, 3, 3]
+    num_identity_blocks = [0, 0, 2, 3, 5, 2]
 
-    X = _convolution_block_layer(input=X,
-                                 f=3,
-                                 filters=filters[0],
-                                 s=1,
-                                 name='stage-2-0')
-    for i in range(2):
-        X = _identity_block_layer(input=X,
-                                  f=3,
-                                  filters=filters[0],
-                                  name='stage-2-' + (str(i + 1)))
+    for stage in range(2, 6):
+        X = _convolution_block_layer(input=X,
+                                 f=kernel_sizes[stage],
+                                 filters=filters[stage],
+                                 s=strides[stage],
+                                     name='stage-{}-0'.format(stage))
+        for i in range(num_identity_blocks[stage]):
+            X = _identity_block_layer(input=X,
+                                      f=kernel_sizes[stage],
+                                  filters=filters[stage],
+                                  name='stage-{}-{}'.format(stage, str(i + 1)))
 
-    # Stage 3
-    X = _convolution_block_layer(input=X,
-                                 f=3,
-                                 filters=filters[1],
-                                 s=1,
-                                 name='stage-3-0')
+    # # Stage 3
+    # X = _convolution_block_layer(input=X,
+    #                              f=3,
+    #                              filters=filters[1],
+    #                              s=1,
+    #                              name='stage-3-0')
 
-    for i in range(3):
-        X = _identity_block_layer(input=X,
-                                  f=3,
-                                  filters=filters[1],
-                                  name='stage-3-' + (str(i + 1)))
+    # for i in range(3):
+    #     X = _identity_block_layer(input=X,
+    #                               f=3,
+    #                               filters=filters[1],
+    #                               name='stage-3-' + (str(i + 1)))
 
-    # Stage 4
-    X = _convolution_block_layer(input=X,
-                                 f=3,
-                                 filters=filters[2],
-                                 s=1,
-                                 name='stage-4-0')
+    # # Stage 4
+    # X = _convolution_block_layer(input=X,
+    #                              f=3,
+    #                              filters=filters[2],
+    #                              s=1,
+    #                              name='stage-4-0')
 
-    for i in range(5):
-        X = _identity_block_layer(input=X,
-                                  f=3,
-                                  filters=filters[2],
-                                  name='stage-4-' + (str(i + 1)))
+    # for i in range(5):
+    #     X = _identity_block_layer(input=X,
+    #                               f=3,
+    #                               filters=filters[2],
+    #                               name='stage-4-' + (str(i + 1)))
 
-    # Stage 5
-    X = _convolution_block_layer(input=X,
-                                 f=3,
-                                 filters=filters[3],
-                                 s=1,
-                                 name='stage-5-0')
+    # # Stage 5
+    # X = _convolution_block_layer(input=X,
+    #                              f=3,
+    #                              filters=filters[3],
+    #                              s=1,
+    #                              name='stage-5-0')
 
-    for i in range(2):
-        X = _identity_block_layer(input=X,
-                                  f=3,
-                                  filters=filters[3],
-                                  name='stage-5-' + (str(i + 1)))
+    # for i in range(2):
+    #     X = _identity_block_layer(input=X,
+    #                               f=3,
+    #                               filters=filters[3],
+    #                               name='stage-5-' + (str(i + 1)))
 
     X = tf.layers.average_pooling2d(inputs=X,
                                     pool_size=(2, 2),
@@ -267,7 +273,7 @@ def _model_fn(features, labels, mode, params):
         [type] -- [description]
     """
 
-    logits = _inference(features, params['n_classes'])
+    logits = _inference(features, params['num_classes'])
     loss = _loss(labels, logits)
 
     predicted_classes = tf.argmax(logits, 1)
@@ -308,79 +314,31 @@ def _model_fn(features, labels, mode, params):
 
 
 class MyResNets(TFBaseModel):
-    def __init__(self, input_shape, model_dir, num_classes):
-        self.name = 'my-resnets'
-        self.model_dir = os.path.join(model_dir, self.name)
-
-        super().__init__(input_shape, num_classes)
-
-    def import_data(self, dataset, batch_size, target_size, validation_split=0.1, output_type='dataset'):
-        dataset_generator = dataset.get_train_validation_generator(
-            batch_size=batch_size,
-            target_size=target_size,
-            validation_size=validation_split,
-            output_type=output_type)
-
-        train_dataset, val_dataset = next(dataset_generator)
-
-        iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
-                                                   train_dataset.output_shapes)
-
-        features, labels = iterator.get_next()
-        # self.X = features['image']
-
-        self.train_iter = iterator.make_initializer(train_dataset)
-        self.eval_iter = iterator.make_initializer(val_dataset)
-
-        return features, labels
-
-    def build(self, model_fn, dataset, batch_size, target_size, params):
-        features, labels = self.import_data(dataset, batch_size, target_size)
-
-        self.global_step = tf.get_variable(
-            name='global_step', trainable=False, initializer=tf.constant(0))
-
-        self.spec = model_fn(features, labels, mode=None, params=params)
-
-    def train_one_epoch(input_fn, steps):
-        pass
-
-    def train(parameter_list):
-        pass
+    def __init__(self, model_dir):
+        super().__init__(name='my-resnets', model_dir=model_dir, model_fn=_model_fn)
 
     @staticmethod
     def finetune(data_path, image_original_size):
+        learning_rate = 0.001
+
         dataset = GoogleLandmarkDataset(
-                data_path, (image_original_size[0], image_original_size[1]), images_count_min=10000)
+            data_path, (image_original_size[0], image_original_size[1]), images_count_min=10000)
         print(dataset.train_df.shape)
         print(dataset.num_classes)
 
-        classifier = tf.estimator.Estimator(
-            model_fn = _model_fn,
-            params={
-                'n_classes': dataset.num_classes,
-                'learning_rate': 0.001
-            },
-            model_dir='./logs/my-resnets'
-        )
+        model_params = {
+            'num_classes': dataset.num_classes,
+            'learning_rate': learning_rate
+        }
 
-        dataset_generator = dataset.get_train_validation_generator(
-            batch_size=50,
-            target_size=64,
-            validation_size=0.1,
-            output_type='dataset')
+        model = MyResNets(model_dir='./logs/')
+        model.build(dataset=dataset,
+                    batch_size=50,
+                    target_size=(64, 64),
+                    params=model_params)
 
-        train_dataset, val_dataset = next(dataset_generator)
+        logname = 'lr={}-cls={}'.format(learning_rate, dataset.num_classes)
 
-        # iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
-        #                                            train_dataset.output_shapes)
-
-        # features, labels = iterator.get_next()
-        # # self.X = features['image']
-
-        # self.train_iter = iterator.make_initializer(train_dataset)
-        # self.eval_iter = iterator.make_initializer(val_dataset)
-
-        classifier.train(input_fn = lambda: train_dataset.shuffle(buffer_size=10000).batch(50).prefetch(50), steps=10000)
-
-        print('finish training')
+        total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
+                                                   eval_iter=model.eval_iter,
+                                                   logname=logname)
