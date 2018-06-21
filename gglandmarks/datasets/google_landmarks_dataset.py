@@ -32,10 +32,10 @@ class GoogleLandmarkDataset(object):
         self.size = size
         self.images_count_min = images_count_min
 
-        print('train before clean: {}'.format(self.train_df.shape))
+        # print('train before clean: {}'.format(self.train_df.shape))
         if images_count_min is not None:
             self.train_df = self.clean_train_data(self.train_df, self.images_count_min)
-            print('train after clean: {}'.format(self.train_df.shape))
+            # print('train after clean: {}'.format(self.train_df.shape))
 
         # build classes indexes
         self.encoder = self.create_label_indexes(self.train_df['landmark_id'])
@@ -54,14 +54,14 @@ class GoogleLandmarkDataset(object):
         stats = self.get_frequent_landmarks(train_df, images_count_min)
         landmarks = stats.index.tolist()
         # print('frequent landmarks len: {}'.format(len(landmarks)))
-        print('train before remove: {}'.format(train_df.shape))
+        # print('train before remove: {}'.format(train_df.shape))
         # print(landmarks)
         # print(train_df['landmark_id'].describe())
         # print(train_df['landmark_id'])
         # print(train_df['landmark_id'].isin(landmarks))
         # print(train_df[train_df['landmark_id'].isin(landmarks)])
         new_train_df = train_df[train_df['landmark_id'].isin(landmarks)]
-        print('train after remove: {}'.format(new_train_df.shape))
+        # print('train after remove: {}'.format(new_train_df.shape))
         new_train_df = new_train_df[new_train_df['path'] != '']
 
         # new_train_df.to_csv('temp.csv')
@@ -162,10 +162,10 @@ class GoogleLandmarkDataset(object):
                 lambda: tf.image.decode_png(image_string, channels=3))
 
             target_size_op = tf.constant(target_size, name='target_size')
-            print('target_size:{}'.format(target_size))
-            print(target_size_op)
+            # print('target_size:{}'.format(target_size))
+            # print(target_size_op)
             image_resized = tf.image.resize_images(image_decoded, size=target_size_op)
-            print('obtaind image_resized')
+            # print('obtaind image_resized')
             # one_hot_label = tf.py_func(_encode, [landmark], tf.int64)
             # return image_decoded, landmark
             return {'image': image_resized}, label
