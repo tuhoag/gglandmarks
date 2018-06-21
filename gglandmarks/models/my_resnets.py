@@ -1,6 +1,7 @@
 import tensorflow as tf
 from .tf_base_model import TFBaseModel
 import os
+from gglandmarks.datasets import GoogleLandmarkDataset
 
 def _input_layer(features, name='input'):
     with tf.variable_scope(name):
@@ -245,7 +246,7 @@ def _loss(labels, logits):
         return loss
 
 
-def _optimize(learning_rate):
+def _optimize(loss, learning_rate):
     with tf.variable_scope('train'):
         train_op = tf.train.GradientDescentOptimizer(
             learning_rate=learning_rate).minimize(loss, global_step=tf.train.get_global_step())
@@ -254,7 +255,19 @@ def _optimize(learning_rate):
 
 
 def _model_fn(features, labels, mode, params):
-    logits = _inference(features, params['classes'])
+    """[summary]
+
+    Arguments:
+        features {[type]} -- [description]
+        labels {[type]} -- [description]
+        mode {[type]} -- [description]
+        params {[type]} -- [description]
+
+    Returns:
+        [type] -- [description]
+    """
+
+    logits = _inference(features, params['n_classes'])
     loss = _loss(labels, logits)
 
     predicted_classes = tf.argmax(logits, 1)
@@ -280,7 +293,7 @@ def _model_fn(features, labels, mode, params):
         return tf.estimator.EstimatorSpec(mode, eval_metric_ops=metrics)
 
     # train
-    train_op = _optimize(learning_rate=params['learning_rate'])
+    train_op = _optimize(loss, learning_rate=params['learning_rate'])
 
     if mode == tf.estimator.ModeKeys.TRAIN:
         return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
@@ -295,11 +308,79 @@ def _model_fn(features, labels, mode, params):
 
 
 class MyResNets(TFBaseModel):
-    def __init__(self, image_shape, model_dir, log_dir, num_classes):
+    def __init__(self, input_shape, model_dir, num_classes):
         self.name = 'my-resnets'
         self.model_dir = os.path.join(model_dir, self.name)
-        self.log_dir = os.path.join(log_dir, self.name)
 
-        super().__init__(image_shape, num_classes)
+        super().__init__(input_shape, num_classes)
 
+    def import_data(self, dataset, batch_size, target_size, validation_split=0.1, output_type='dataset'):
+        dataset_generator = dataset.get_train_validation_generator(
+            batch_size=batch_size,
+            target_size=target_size,
+            validation_size=validation_split,
+            output_type=output_type)
 
+        train_dataset, val_dataset = next(dataset_generator)
+
+        iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
+                                                   train_dataset.output_shapes)
+
+        features, labels = iterator.get_next()
+        # self.X = features['image']
+
+        self.train_iter = iterator.make_initializer(train_dataset)
+        self.eval_iter = iterator.make_initializer(val_dataset)
+
+        return features, labels
+
+    def build(self, model_fn, dataset, batch_size, target_size, params):
+        features, labels = self.import_data(dataset, batch_size, target_size)
+
+        self.global_step = tf.get_variable(
+            name='global_step', trainable=False, initializer=tf.constant(0))
+
+        self.spec = model_fn(features, labels, mode=None, params=params)
+
+    def train_one_epoch(input_fn, steps):
+        pass
+
+    def train(parameter_list):
+        pass
+
+    @staticmethod
+    def finetune(data_path, image_original_size):
+        dataset = GoogleLandmarkDataset(
+                data_path, (image_original_size[0], image_original_size[1]), images_count_min=10000)
+        print(dataset.train_df.shape)
+        print(dataset.num_classes)
+
+        classifier = tf.estimator.Estimator(
+            model_fn = _model_fn,
+            params={
+                'n_classes': dataset.num_classes,
+                'learning_rate': 0.001
+            },
+            model_dir='./logs/my-resnets'
+        )
+
+        dataset_generator = dataset.get_train_validation_generator(
+            batch_size=50,
+            target_size=64,
+            validation_size=0.1,
+            output_type='dataset')
+
+        train_dataset, val_dataset = next(dataset_generator)
+
+        # iterator = tf.data.Iterator.from_structure(train_dataset.output_types,
+        #                                            train_dataset.output_shapes)
+
+        # features, labels = iterator.get_next()
+        # # self.X = features['image']
+
+        # self.train_iter = iterator.make_initializer(train_dataset)
+        # self.eval_iter = iterator.make_initializer(val_dataset)
+
+        classifier.train(input_fn = lambda: train_dataset.shuffle(buffer_size=10000).batch(50).prefetch(50), steps=10000)
+
+        print('finish training')

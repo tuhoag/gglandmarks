@@ -1,8 +1,8 @@
 import tensorflow as tf
 
 class TFBaseModel():
-    def __init__(self, image_shape, num_classes):
-        self.image_shape = image_shape
+    def __init__(self, input_shape, num_classes):
+        self.input_shape = input_shape
         self.num_classes = num_classes
 
     def import_data(self, dataset, batch_size, target_size, validation_split=0.1, output_type='dataset'):

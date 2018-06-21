@@ -1,17 +1,7 @@
-import keras
-from keras.applications import VGG16, DenseNet121
-from keras.preprocessing.image import ImageDataGenerator, array_to_img, img_to_array, load_img
-from keras import Sequential
-from keras.layers import Dense, Input, Flatten, Activation, Dropout
-from keras.models import Model, load_model
-import glob
-import os
-import numpy as np
-from tqdm import tqdm
 from gglandmarks.datasets.google_landmarks_dataset import GoogleLandmarkTestGenerator
-from gglandmarks.models import MyDenseNet, MyVGG, MyResNets
-
+from gglandmarks.models import MyResNets
 from gglandmarks.datasets import GoogleLandmarkDataset
+import os
 
 # load data
 data_path = './data/landmarks_recognition/'
@@ -31,4 +21,4 @@ image_height = 48
 image_channel = 3
 batch_shape = (None, image_width, image_height, image_channel)
 
-MyVGG.finetune(data_path, (image_original_width, image_original_height))
+MyResNets.finetune(data_path, (image_original_width, image_original_height))

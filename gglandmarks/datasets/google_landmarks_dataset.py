@@ -27,13 +27,13 @@ DEFAULT_ORIGINAL_IMG_DIRECTORY='original'
 NUMBER_OF_SAMPLES = 1000
 
 class GoogleLandmarkDataset(object):
-    def __init__(self, directory, size, images_count_min=None, is_clean_data=True):
+    def __init__(self, directory, size, images_count_min=None):
         self.train_df, self.test_df = load_data(directory, size)
         self.size = size
         self.images_count_min = images_count_min
 
         print('train before clean: {}'.format(self.train_df.shape))
-        if is_clean_data:
+        if images_count_min is not None:
             self.train_df = self.clean_train_data(self.train_df, self.images_count_min)
             print('train after clean: {}'.format(self.train_df.shape))
 
@@ -122,7 +122,7 @@ class GoogleLandmarkDataset(object):
         Returns:
             (DataGenerator, DataGenerator) -- Train and validation generator
         """
-
+        assert(len(target_size) == 2), 'target_size must be a list/tuple of two integer (height, width)'
 
         train_df = self.train_df
 
@@ -144,15 +144,15 @@ class GoogleLandmarkDataset(object):
             labels = self.encoder.class_to_label(landmarks)
             dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
             dataset = dataset.map(_parse)
-            dataset = dataset.shuffle(batch_size)
-            dataset = dataset.batch(batch_size)            
+            dataset = dataset.shuffle(buffer_size=10000)
+            dataset = dataset.batch(batch_size)
             dataset = dataset.prefetch(batch_size)
             # dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
 
             return dataset
 
         def _parse(image_path, label):
-            print(image_path)
+            # print(image_path)
 
             image_string = tf.read_file(image_path)
             # image_decoded = tf.image.decode_image(image_string, channels=3)
@@ -161,8 +161,11 @@ class GoogleLandmarkDataset(object):
                 lambda: tf.image.decode_jpeg(image_string, channels=3),
                 lambda: tf.image.decode_png(image_string, channels=3))
 
-            image_resized = tf.image.resize_images(image_decoded, target_size)
-
+            target_size_op = tf.constant(target_size, name='target_size')
+            print('target_size:{}'.format(target_size))
+            print(target_size_op)
+            image_resized = tf.image.resize_images(image_decoded, size=target_size_op)
+            print('obtaind image_resized')
             # one_hot_label = tf.py_func(_encode, [landmark], tf.int64)
             # return image_decoded, landmark
             return {'image': image_resized}, label
