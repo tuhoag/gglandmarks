@@ -255,15 +255,12 @@ def _inference(features, classes):
     Y_hat = fc_layer(input=X,
                 channels_out=classes,
                 activation=None)
-    # X = tf.layers.dense(inputs=X,
-    #                     units=classes,
-    #                     activation=None)
 
     with tf.variable_scope("Y_hat"):
         tf.summary.histogram('raw', Y_hat)
-        tf.summary.histogram('softmax', tf.nn.softmax(Y_hat))        
-        tf.summary.histogram('sigmoid', tf.nn.sigmoid(Y_hat))       
-        tf.summary.histogram('max', tf.reduce_max(tf.nn.softmax(Y_hat)))
+        tf.summary.histogram('softmax', tf.nn.softmax(Y_hat))
+        tf.summary.histogram('sigmoid', tf.nn.sigmoid(Y_hat))
+        # tf.summary.histogram('max', tf.reduce_max(tf.nn.softmax(Y_hat)))
 
     return Y_hat
 
@@ -346,7 +343,7 @@ class MyResNets(TFBaseModel):
     @staticmethod
     def finetune(data_path, image_original_size, model_dir):
         learning_rates = [0.0001, 0.001, 0.01]
-        
+
         for learning_rate in learning_rates:
             dataset = GoogleLandmarkDataset(
                 data_path, (image_original_size[0], image_original_size[1]), images_count_min=500)
@@ -369,5 +366,5 @@ class MyResNets(TFBaseModel):
             total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
                                                     eval_iter=model.eval_iter,
                                                     logname=logname)
-                                                    
+
             print('accuracy:{} - losses: {}'.format(total_accuracies, total_losses))
