@@ -4,7 +4,7 @@ import os
 
 class TFBaseModel():
     def __init__(self, name, model_dir, model_fn):
-        self.name = name,
+        self.name = name        
         self.model_dir = model_dir
         self.model_fn = model_fn
 
@@ -96,11 +96,12 @@ class TFBaseModel():
     def fit(self, train_iter, eval_iter, logname, epochs=1000, steps=10000):
         """
         """
-        writer_path = os.path.join(
-            self.model_dir, logname + '-' + str(datetime.datetime.now()))
+        writer_path = os.path.join(            
+            self.model_dir, self.name, logname + '-' + str(datetime.datetime.now()))
         train_writer = tf.summary.FileWriter(writer_path + '-train')
         eval_writer = tf.summary.FileWriter(writer_path + '-eval')
-
+        print(self.model_dir)
+        print(writer_path)
         current_step = 0
         total_losses = []
         total_accuracies = []

@@ -151,6 +151,22 @@ def _convolution_block_layer(input, f, filters, s, name):
 
         return X
 
+def fc_layer(input, channels_out, activation=None, name='fc'):
+    with tf.variable_scope(name):
+        # if activation == tf.nn.relu:
+        he_initializer = tf.keras.initializers.he_normal()
+
+        layer = tf.layers.Dense(channels_out, use_bias=True, activation=activation,
+                                kernel_initializer=he_initializer, bias_initializer=tf.zeros_initializer)
+        value = layer(input)
+
+        weights, bias = layer.trainable_weights
+
+        tf.summary.histogram('weights', weights)
+        tf.summary.histogram('biases', bias)
+        tf.summary.histogram('activation', value)
+        tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
+        return value
 
 def _inference(features, classes):
     X = _input_layer(features)
@@ -180,16 +196,17 @@ def _inference(features, classes):
     num_identity_blocks = [0, 0, 2, 3, 5, 2]
 
     for stage in range(2, 6):
-        X = _convolution_block_layer(input=X,
-                                 f=kernel_sizes[stage],
-                                 filters=filters[stage],
-                                 s=strides[stage],
-                                     name='stage-{}-0'.format(stage))
-        for i in range(num_identity_blocks[stage]):
-            X = _identity_block_layer(input=X,
-                                      f=kernel_sizes[stage],
-                                  filters=filters[stage],
-                                  name='stage-{}-{}'.format(stage, str(i + 1)))
+        with tf.variable_scope('stage-' + str(stage)):
+            X = _convolution_block_layer(input=X,
+                                    f=kernel_sizes[stage],
+                                    filters=filters[stage],
+                                    s=strides[stage],
+                                        name='stage-{}-0'.format(stage))
+            for i in range(num_identity_blocks[stage]):
+                X = _identity_block_layer(input=X,
+                                        f=kernel_sizes[stage],
+                                    filters=filters[stage],
+                                    name='stage-{}-{}'.format(stage, str(i + 1)))
 
     # # Stage 3
     # X = _convolution_block_layer(input=X,
@@ -235,11 +252,20 @@ def _inference(features, classes):
                                     strides=(2, 2))
 
     X = tf.layers.flatten(inputs=X)
-    X = tf.layers.dense(inputs=X,
-                        units=classes,
-                        activation=None)
+    Y_hat = fc_layer(input=X,
+                channels_out=classes,
+                activation=None)
+    # X = tf.layers.dense(inputs=X,
+    #                     units=classes,
+    #                     activation=None)
 
-    return X
+    with tf.variable_scope("Y_hat"):
+        tf.summary.histogram('raw', Y_hat)
+        tf.summary.histogram('softmax', tf.nn.softmax(Y_hat))        
+        tf.summary.histogram('sigmoid', tf.nn.sigmoid(Y_hat))       
+        tf.summary.histogram('max', tf.reduce_max(tf.nn.softmax(Y_hat)))
+
+    return Y_hat
 
 
 def _loss(labels, logits):
@@ -318,27 +344,30 @@ class MyResNets(TFBaseModel):
         super().__init__(name='my-resnets', model_dir=model_dir, model_fn=_model_fn)
 
     @staticmethod
-    def finetune(data_path, image_original_size):
-        learning_rate = 0.001
+    def finetune(data_path, image_original_size, model_dir):
+        learning_rates = [0.0001, 0.001, 0.01]
+        
+        for learning_rate in learning_rates:
+            dataset = GoogleLandmarkDataset(
+                data_path, (image_original_size[0], image_original_size[1]), images_count_min=500)
+            print(dataset.train_df.shape)
+            print(dataset.num_classes)
 
-        dataset = GoogleLandmarkDataset(
-            data_path, (image_original_size[0], image_original_size[1]), images_count_min=10000)
-        print(dataset.train_df.shape)
-        print(dataset.num_classes)
+            model_params = {
+                'num_classes': dataset.num_classes,
+                'learning_rate': learning_rate
+            }
 
-        model_params = {
-            'num_classes': dataset.num_classes,
-            'learning_rate': learning_rate
-        }
+            model = MyResNets(model_dir=model_dir)
+            model.build(dataset=dataset,
+                        batch_size=100,
+                        target_size=(64, 64),
+                        params=model_params)
 
-        model = MyResNets(model_dir='./logs/')
-        model.build(dataset=dataset,
-                    batch_size=50,
-                    target_size=(64, 64),
-                    params=model_params)
+            logname = 'lr={}-cls={}'.format(learning_rate, dataset.num_classes)
 
-        logname = 'lr={}-cls={}'.format(learning_rate, dataset.num_classes)
-
-        total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
-                                                   eval_iter=model.eval_iter,
-                                                   logname=logname)
+            total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
+                                                    eval_iter=model.eval_iter,
+                                                    logname=logname)
+                                                    
+            print('accuracy:{} - losses: {}'.format(total_accuracies, total_losses))

@@ -32,13 +32,22 @@ class GoogleLandmarkDataset(object):
         self.size = size
         self.images_count_min = images_count_min
 
+        self.train_df = self.remove_missing_images(self.train_df)
+        self.test_df = self.remove_missing_images(self.test_df)
+
         # print('train before clean: {}'.format(self.train_df.shape))
         if images_count_min is not None:
-            self.train_df = self.clean_train_data(self.train_df, self.images_count_min)
+            self.train_df = self.clean_train_data(self.train_df, self.images_count_min)        
+            
             # print('train after clean: {}'.format(self.train_df.shape))
 
         # build classes indexes
         self.encoder = self.create_label_indexes(self.train_df['landmark_id'])
+
+    def remove_missing_images(self, df):
+        new_df = df[df['path'] != '']
+
+        return new_df
 
     def clean_train_data(self, train_df, images_count_min):
         """Remove classes have less than images_count_min data
@@ -62,7 +71,7 @@ class GoogleLandmarkDataset(object):
         # print(train_df[train_df['landmark_id'].isin(landmarks)])
         new_train_df = train_df[train_df['landmark_id'].isin(landmarks)]
         # print('train after remove: {}'.format(new_train_df.shape))
-        new_train_df = new_train_df[new_train_df['path'] != '']
+        # new_train_df = new_train_df[new_train_df['path'] != '']
 
         # new_train_df.to_csv('temp.csv')
 
@@ -110,7 +119,7 @@ class GoogleLandmarkDataset(object):
         # print(len(encoder.classes_))
         return encoder
 
-    def get_train_validation_generator(self, batch_size, target_size, validation_size, output_type='generator'):
+    def get_train_validation_generator(self, batch_size, target_size, validation_size, output_type='generator', shuffle=False):
         """Get train and validation generators
 
         Arguments:
@@ -136,7 +145,7 @@ class GoogleLandmarkDataset(object):
 
             yield data_gen(train_path, train_landmark), data_gen(test_path, test_landmark)
 
-    def data_generator(self, batch_size, target_size, output_type):
+    def data_generator(self, batch_size, target_size, output_type, shuffle=False):
         def create_data_generator(paths, landmarks):
             return DataGenerator(paths, landmarks, self.encoder, batch_size, target_size)
 
@@ -144,7 +153,9 @@ class GoogleLandmarkDataset(object):
             labels = self.encoder.class_to_label(landmarks)
             dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
             dataset = dataset.map(_parse)
-            dataset = dataset.shuffle(buffer_size=10000)
+            if shuffle:
+                dataset = dataset.shuffle(buffer_size=batch_size)
+                
             dataset = dataset.batch(batch_size)
             dataset = dataset.prefetch(batch_size)
             # dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
