@@ -47,6 +47,8 @@ def _conv_layer(input, kernel_size, filters, padding='same', strides=(1, 1), act
             'sparsity/conv', tf.nn.zero_fraction(conv_out))
         tf.summary.histogram('batch_output', batch_out)
         tf.summary.histogram('output', output)
+        tf.summary.histogram(
+            'sparsity/output', tf.nn.zero_fraction(output))
 
         return output
 
@@ -277,7 +279,7 @@ def _loss(labels, logits):
 
 def _optimize(loss, learning_rate):
     with tf.variable_scope('train'):
-        train_op = tf.train.GradientDescentOptimizer(
+        train_op = tf.train.AdamOptimizer(
             learning_rate=learning_rate).minimize(loss, global_step=tf.train.get_global_step())
 
         return train_op
