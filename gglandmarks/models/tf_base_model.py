@@ -4,7 +4,7 @@ import os
 
 class TFBaseModel():
     def __init__(self, name, model_dir, model_fn):
-        self.name = name        
+        self.name = name
         self.model_dir = model_dir
         self.model_fn = model_fn
 
@@ -38,8 +38,11 @@ class TFBaseModel():
 
         self.spec = self.model_fn(features, labels, mode=None, params=params)
 
-    def train_one_epoch(self, input_fn, writer, current_step, session, steps=None):
+    def train_one_epoch(self, input_fn, writer, saver, save_path, session, steps=None):
         # train
+        save_delay_steps = 100
+        logs_delay_steps = 10
+
         train_init = input_fn()
         loss = self.spec.loss
         train_op = self.spec.train_op
@@ -47,19 +50,26 @@ class TFBaseModel():
 
         session.run(train_init)
 
-        step = 0
         total_loss = 0
         try:
             while True:
-                step += 1
-                train_loss, _, s, current_step = session.run(
-                    [loss, train_op, merged_summary, self.global_step])
-                writer.add_summary(s, current_step)
-                print('current step: {}'.format(current_step))
-                print('{} - train loss: {}'.format(step, train_loss))
+                train_loss, _, current_step = session.run(
+                    [loss, train_op, self.global_step])
+                print('{} - train loss: {}'.format(current_step, train_loss))
                 total_loss += train_loss
 
-                if(steps is not None and step >= steps):
+                if current_step % save_delay_steps == 0:
+                    # save
+                    saver_path = saver.save(session, save_path, global_step=self.global_step)
+                    print('save model to: {}'.format(saver_path))
+
+                if current_step % logs_delay_steps == 0:
+                    # log
+                    s = session.run(merged_summary)
+                    writer.add_summary(s, current_step)
+                    print('write log')
+
+                if(steps is not None and current_step >= steps):
                     break
 
         except tf.errors.OutOfRangeError as err:
@@ -93,11 +103,11 @@ class TFBaseModel():
 
         return total_accuracy
 
-    def fit(self, train_iter, eval_iter, logname, epochs=1000, steps=10000):
+    def fit(self, train_iter, eval_iter, logname, epochs=1000, steps=1000):
         """
         """
-        writer_path = os.path.join(            
-            self.model_dir, self.name, logname + '-' + str(datetime.datetime.now()))
+        writer_path = os.path.join(
+            self.model_dir, self.name, logname)
         train_writer = tf.summary.FileWriter(writer_path + '-train')
         eval_writer = tf.summary.FileWriter(writer_path + '-eval')
         print(self.model_dir)
@@ -105,6 +115,7 @@ class TFBaseModel():
         current_step = 0
         total_losses = []
         total_accuracies = []
+        saver = tf.train.Saver()
 
         # self.build(dataset, 50, self.image_shape, self.num_classes, 0.001)
         with tf.Session() as sess:
@@ -113,17 +124,24 @@ class TFBaseModel():
             train_writer.add_graph(sess.graph)
             eval_writer.add_graph(sess.graph)
 
+            # cpst = tf.train.get_checkpoint_state(writer_path)
+            # if cpst is not None:
+            last_checkpoint = tf.train.latest_checkpoint(os.path.dirname(writer_path))
+            print(last_checkpoint)
+            if last_checkpoint is not None:
+                saver.restore(sess, last_checkpoint)
+                print('model restored from: {}'.format(last_checkpoint))
+
             for i in range(epochs):
                 print("Traing epoch:{}".format(i))
                 total_loss, current_step = self.train_one_epoch(
-                    lambda: train_iter, current_step=current_step, writer=train_writer, steps=steps, session=sess)
+                    lambda: train_iter, writer=train_writer, saver=saver, save_path=writer_path, steps=steps, session=sess)
 
                 total_losses.append(total_loss)
 
-                if i % 10 == 0:
-                    print("Evaluating epoch: {}".format(i))
-                    total_accuracy = self.evaluate(
-                        lambda: eval_iter, current_step=current_step, writer=eval_writer, session=sess, steps=steps)
+                print("Evaluating epoch: {}".format(i))
+                total_accuracy = self.evaluate(
+                    lambda: eval_iter, current_step=current_step, writer=eval_writer, session=sess, steps=steps)
 
                 total_accuracies.append(total_accuracy)
 
