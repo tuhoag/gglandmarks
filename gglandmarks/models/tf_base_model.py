@@ -103,7 +103,7 @@ class TFBaseModel():
 
         return total_accuracy
 
-    def fit(self, train_iter, eval_iter, logname, epochs=1000, steps=1000):
+    def fit(self, train_iter, eval_iter, logname, epochs=100, steps=1000):
         """
         """
         writer_path = os.path.join(

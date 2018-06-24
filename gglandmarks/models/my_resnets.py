@@ -344,7 +344,7 @@ class MyResNets(TFBaseModel):
 
     @staticmethod
     def finetune(data_path, image_original_size, model_dir):
-        learning_rates = [0.0001, 0.001, 0.01]
+        learning_rates = [0.001, 0.01]
 
         for learning_rate in learning_rates:
             dataset = GoogleLandmarkDataset(
