@@ -3,8 +3,16 @@ import datetime
 import os
 import random
 
+
+def _input_layer(features, name='input'):
+    with tf.variable_scope(name):
+        X = features['image']
+        # tf.summary.image('input', X, 3)
+
+        return X
+
 def _optimize(loss, params):
-    with tf.variable_scope('train'): 
+    with tf.variable_scope('train'):
         global_step = tf.train.get_global_step()
 
         if 'decay_steps' in params:
@@ -14,7 +22,7 @@ def _optimize(loss, params):
         else:
             print('normal learning rate')
             learning_rate = tf.constant(params['learning_rate'])
-        
+
         tf.summary.scalar('learning_rate', learning_rate)
         # tf.summary.scalar('global_step', global_step)
         # Passing global_step to minimize() will increment it at each step.
@@ -73,7 +81,7 @@ class TFBaseModel():
         step = 0
         total_loss = 0
         try:
-            while True:    
+            while True:
                 if(steps is not None and step >= steps):
                     break
 
@@ -98,9 +106,9 @@ class TFBaseModel():
         except tf.errors.OutOfRangeError as err:
             print('end epoch:')
 
-        return total_loss, current_step    
+        return total_loss, current_step
 
-    def evaluate(self, input_fn, writer, current_step, session, steps=None):        
+    def evaluate(self, input_fn, writer, current_step, session, steps=None):
         merged_summary = tf.summary.merge_all()
         eval_init = input_fn()
         metrics_ops = self.spec.eval_metric_ops
@@ -113,7 +121,7 @@ class TFBaseModel():
             while True:
                 if(steps is not None and step >= steps):
                     break
-                
+
                 s, metrics = session.run([merged_summary, metrics_ops])
                 # writer.add_summary(s, current_step)
                 # print('write log')
@@ -124,7 +132,7 @@ class TFBaseModel():
                 step += 1
 
         except tf.errors.OutOfRangeError as err:
-            print('end epoch')        
+            print('end epoch')
 
         # Take the mean of you measure
         writer.add_summary(s, current_step)
