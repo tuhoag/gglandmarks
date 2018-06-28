@@ -164,10 +164,10 @@ def fc_layer(input, channels_out, activation=None, name='fc'):
 
         weights, bias = layer.trainable_weights
 
-        # tf.summary.histogram('weights', weights)
-        # tf.summary.histogram('biases', bias)
-        # tf.summary.histogram('activation', value)
-        # tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
+        tf.summary.histogram('weights', weights)
+        tf.summary.histogram('biases', bias)
+        tf.summary.histogram('activation', value)
+        tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
         return value
 
 def _inference(features, params):
@@ -292,8 +292,8 @@ class MyResNets(TFBaseModel):
     @staticmethod
     def finetune(data_path, image_original_size, model_dir):
         learning_rates = [0.0001]
-        batch_size = 128
-        target_size = 64
+        batch_size = 32
+        target_size = 128
 
         for learning_rate in learning_rates:
             dataset = GoogleLandmarkDataset(
@@ -304,7 +304,7 @@ class MyResNets(TFBaseModel):
             model_params = {
                 'num_classes': dataset.num_classes,
                 'learning_rate': learning_rate,
-                'stage4_identity_blocks': 8
+                'stage4_identity_blocks': 5
                 # 'decay_steps': dataset.train_df.shape[0] / batch_size
             }
 
@@ -314,7 +314,7 @@ class MyResNets(TFBaseModel):
                         target_size=(target_size, target_size),
                         params=model_params)
 
-            logname = 'slr={}-cls={}-l={}'.format(learning_rate, dataset.num_classes, model_params['stage4_identity_blocks']).replace('[', '(').replace(']', ')')
+            logname = 'slr={}-cls={}-l={}-i={}-b={}'.format(learning_rate, dataset.num_classes, model_params['stage4_identity_blocks'], target_size, batch_size).replace('[', '(').replace(']', ')')
 
             total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
                                                     eval_iter=model.eval_iter,
