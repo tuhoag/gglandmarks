@@ -26,8 +26,10 @@ def _optimize(loss, params):
         tf.summary.scalar('learning_rate', learning_rate)
         # tf.summary.scalar('global_step', global_step)
         # Passing global_step to minimize() will increment it at each step.
-        train_op = tf.train.AdamOptimizer(
-            learning_rate=learning_rate).minimize(loss, global_step=global_step)
+
+        if 'optimizer' not in params:
+            train_op = tf.train.AdamOptimizer(
+                learning_rate=learning_rate).minimize(loss, global_step=global_step)        
 
         return train_op
 
