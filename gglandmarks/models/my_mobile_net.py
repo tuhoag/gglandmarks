@@ -4,6 +4,48 @@ import os
 from gglandmarks.datasets import GoogleLandmarkDataset
 import datetime
 
+
+def _depthwise_seperable_conv2d(input, pointwise_conv_filters, name):
+    with tf.variable_scope(name):
+        depthwise_out = _depthwise_conv2d_layer(input,
+            pointwise_conv_filters=pointwise_conv_filters,
+            name='depthwise')
+        conv2d_out = _conv_layer(depthwise_out,
+                                 filters=pointwise_conv_filters,
+                                 kernel_size=(
+                                     1, 1), padding='SAME',
+                                 strides=(1, 1))
+
+        return conv2d_out
+
+
+def _depthwise_conv2d_layer(input, pointwise_conv_filters, activation=tf.nn.relu, kernel_size=(3, 3), multiplier=1, strides=(1, 1, 1, 1), batch_norm=True, name='depthwise_conv'):
+    with tf.variable_scope(name):
+        w = tf.get_variable('kernel', shape=(
+            kernel_size[0], kernel_size[1], input.shape[-1], multiplier))
+
+        conv_out = tf.nn.depthwise_conv2d(input,
+                                          filter=w,
+                                          strides=strides,
+                                          padding='SAME')
+
+        if batch_norm:
+            batch_out = tf.layers.batch_normalization(
+                conv_out,
+                axis=3,
+                scale=False,
+                name='batch_normalization')
+        else:
+            batch_out = conv_out
+
+        if activation is not None:
+            output = activation(batch_out)
+        else:
+            output = batch_out
+
+        return output
+
+
 def _conv_layer(input, kernel_size, filters, padding='same', strides=(1, 1), activation=tf.nn.relu, batch_norm=True, name='conv'):
     with tf.variable_scope(name):
         conv_input = input
@@ -45,107 +87,6 @@ def _conv_layer(input, kernel_size, filters, padding='same', strides=(1, 1), act
 
         return output
 
-
-def _identity_block_layer(input, f, filters, name):
-    """[summary]
-
-    Arguments:
-        input [tensor] -- input tensor
-        f [integer] -- channel out size of the middle conv layer
-        filters [python list of integers] -- the number of filters of each conv layer
-        name [string] -- name of layer
-
-    Returns:
-        [tensor] -- output layer
-    """
-
-    with tf.variable_scope(name):
-        X = input
-
-        X = _conv_layer(input=X,
-                        kernel_size=(1, 1),
-                        filters=filters[0],
-                        strides=(1, 1),
-                        padding='valid',
-                        activation=tf.nn.relu,
-                        name='res2a')
-
-        X = _conv_layer(input=X,
-                        kernel_size=(f, f),
-                        filters=filters[1],
-                        strides=(1, 1),
-                        padding='same',
-                        activation=tf.nn.relu,
-                        name='res2b')
-
-        X = _conv_layer(input=X,
-                        kernel_size=(1, 1),
-                        filters=filters[2],
-                        strides=(1, 1),
-                        padding='valid',
-                        activation=None,
-                        name='res2c')
-
-        X = tf.add(input, X)
-        X = tf.nn.relu(X)
-
-        return X
-
-
-def _convolution_block_layer(input, f, filters, s, name):
-    """[summary]
-
-    Arguments:
-        input [tensor] -- input tensor
-        f [integer] -- channel out size of the middle conv layer
-        filters [python list of integers] -- the number of filters of each conv layer
-        s [integer] -- stride of first conv layer to use
-        name [string] -- name of layer
-
-    Returns:
-        [tensor] -- output layer
-    """
-
-    with tf.variable_scope(name):
-        X = input
-
-        X = _conv_layer(input=X,
-                        kernel_size=(1, 1),
-                        filters=filters[0],
-                        strides=(s, s),
-                        padding='valid',
-                        activation=tf.nn.relu,
-                        name='res2a')
-
-        X = _conv_layer(input=X,
-                        kernel_size=(f, f),
-                        filters=filters[1],
-                        strides=(1, 1),
-                        padding='same',
-                        activation=tf.nn.relu,
-                        name='res2b')
-
-        X = _conv_layer(input=X,
-                        kernel_size=(1, 1),
-                        filters=filters[2],
-                        strides=(1, 1),
-                        padding='valid',
-                        activation=None,
-                        name='res2c')
-
-        shortcut = _conv_layer(input=input,
-                               kernel_size=(1, 1),
-                               filters=filters[2],
-                               strides=(s, s),
-                               padding='valid',
-                               activation=None,
-                               name='shortcut')
-
-        X = tf.add(X, shortcut)
-        X = tf.nn.relu(X)
-
-        return X
-
 def fc_layer(input, channels_out, activation=None, name='fc'):
     with tf.variable_scope(name):
         # if activation == tf.nn.relu:
@@ -157,11 +98,12 @@ def fc_layer(input, channels_out, activation=None, name='fc'):
 
         weights, bias = layer.trainable_weights
 
-        tf.summary.histogram('weights', weights)
-        tf.summary.histogram('biases', bias)
-        tf.summary.histogram('activation', value)
-        tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
+        # tf.summary.histogram('weights', weights)
+        # tf.summary.histogram('biases', bias)
+        # tf.summary.histogram('activation', value)
+        # tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
         return value
+
 
 def _inference(features, params):
     X = _input_layer(features)
@@ -170,50 +112,33 @@ def _inference(features, params):
 
     # Stage 1
     X = _conv_layer(input=X,
-                    filters=64,
+                    filters=32,
                     strides=(2, 2),
-                    kernel_size=(7, 7),
+                    kernel_size=(3, 3),
                     padding='valid',
                     activation=tf.nn.relu)
     X = tf.layers.max_pooling2d(inputs=X, pool_size=(3, 3), strides=(2, 2))
 
-    # Stage 2
-    filters = [
-        [],
-        [],
-        [64, 64, 256],
-        [128, 128, 512],
-        [256, 256, 1024],
-        [512, 512, 2048],
-    ]
-    strides = [0, 0, 1, 2, 2, 2]
-    kernel_sizes = [0, 0, 3, 3, 3, 3]
-    num_identity_blocks = [0, 0, 2, 3, params['stage4_identity_blocks'], 2]
+    layer_sizes = [64, 128, 256, 512, 1024]
+    num_layers = [1, 2, 2, 6, 2]
 
-    for stage in range(2, 6):
-        with tf.variable_scope('stage-' + str(stage)):
-            X = _convolution_block_layer(input=X,
-                                    f=kernel_sizes[stage],
-                                    filters=filters[stage],
-                                    s=strides[stage],
-                                        name='stage-{}-0'.format(stage))
-            for i in range(num_identity_blocks[stage]):
-                X = _identity_block_layer(input=X,
-                                        f=kernel_sizes[stage],
-                                    filters=filters[stage],
-                                    name='stage-{}-{}'.format(stage, str(i + 1)))
+    block_id = 0
+    for i in range(len(num_layers)):
+        num_layer = num_layers[i]
+        for _ in range(num_layer):
+            X = _depthwise_seperable_conv2d(X, layer_sizes[i], name='block-{}'.format(block_id))
+            block_id += 1
 
     X = tf.layers.average_pooling2d(inputs=X,
-                                    pool_size=(2, 2),
+                                    pool_size=(7, 7),
                                     strides=(2, 2))
 
     X = tf.layers.flatten(inputs=X)
     Y_hat = fc_layer(input=X,
-                channels_out=params['num_classes'],
-                activation=None)
+                     channels_out=params['num_classes'],
+                     activation=None)
 
     return Y_hat
-
 
 def _loss(labels, logits):
     with tf.variable_scope('loss'):
@@ -278,15 +203,15 @@ def _model_fn(features, labels, mode, params):
     )
 
 
-class MyResNets(TFBaseModel):
+class MyMobileNet(TFBaseModel):
     def __init__(self, model_dir):
         super().__init__(name='my-resnets', model_dir=model_dir, model_fn=_model_fn)
 
     @staticmethod
     def finetune(data_path, image_original_size, model_dir):
         learning_rates = [0.0001]
-        batch_size = 32
-        target_size = 128
+        batch_size = 128
+        target_size = 64
 
         for learning_rate in learning_rates:
             dataset = GoogleLandmarkDataset(
@@ -297,20 +222,21 @@ class MyResNets(TFBaseModel):
             model_params = {
                 'num_classes': dataset.num_classes,
                 'learning_rate': learning_rate,
-                'stage4_identity_blocks': 5
+                'stage4_identity_blocks': 8
                 # 'decay_steps': dataset.train_df.shape[0] / batch_size
             }
 
-            model = MyResNets(model_dir=model_dir)
+            model = MyMobileNet(model_dir=model_dir)
             model.build(dataset=dataset,
                         batch_size=batch_size,
                         target_size=(target_size, target_size),
                         params=model_params)
 
-            logname = 'slr={}-cls={}-l={}-i={}-b={}'.format(learning_rate, dataset.num_classes, model_params['stage4_identity_blocks'], target_size, batch_size).replace('[', '(').replace(']', ')')
+            logname = 'slr={}-cls={}-l={}'.format(learning_rate, dataset.num_classes,
+                                                  model_params['stage4_identity_blocks']).replace('[', '(').replace(']', ')')
 
             total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
-                                                    eval_iter=model.eval_iter,
-                                                    logname=logname)
+                                                       eval_iter=model.eval_iter,
+                                                       logname=logname)
 
             print('accuracy:{} - losses: {}'.format(total_accuracies, total_losses))
