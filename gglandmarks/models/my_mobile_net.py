@@ -120,7 +120,7 @@ def _inference(features, params):
     X = tf.layers.max_pooling2d(inputs=X, pool_size=(3, 3), strides=(2, 2))
 
     layer_sizes = [64, 128, 256, 512, 1024]
-    num_layers = [1, 2, 2, 6, 2]
+    num_layers = [1, 2, 2, 5, 2]
 
     block_id = 0
     for i in range(len(num_layers)):
@@ -205,12 +205,13 @@ def _model_fn(features, labels, mode, params):
 
 class MyMobileNet(TFBaseModel):
     def __init__(self, model_dir):
-        super().__init__(name='my-resnets', model_dir=model_dir, model_fn=_model_fn)
+        super().__init__(name='my-mobilenet', model_dir=model_dir, model_fn=_model_fn)
 
+    
     @staticmethod
     def finetune(data_path, image_original_size, model_dir):
         learning_rates = [0.0001]
-        batch_size = 128
+        batch_size = 48
         target_size = 64
 
         for learning_rate in learning_rates:
@@ -222,7 +223,7 @@ class MyMobileNet(TFBaseModel):
             model_params = {
                 'num_classes': dataset.num_classes,
                 'learning_rate': learning_rate,
-                'stage4_identity_blocks': 8
+                'stage4_identity_blocks': 5
                 # 'decay_steps': dataset.train_df.shape[0] / batch_size
             }
 
@@ -232,11 +233,10 @@ class MyMobileNet(TFBaseModel):
                         target_size=(target_size, target_size),
                         params=model_params)
 
-            logname = 'slr={}-cls={}-l={}'.format(learning_rate, dataset.num_classes,
-                                                  model_params['stage4_identity_blocks']).replace('[', '(').replace(']', ')')
+            logname = 'slr={}-cls={}-i={}-b={}'.format(learning_rate, dataset.num_classes, target_size, batch_size).replace('[', '(').replace(']', ')')
 
             total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
-                                                       eval_iter=model.eval_iter,
-                                                       logname=logname)
+                                                    eval_iter=model.eval_iter,
+                                                    logname=logname)
 
             print('accuracy:{} - losses: {}'.format(total_accuracies, total_losses))
