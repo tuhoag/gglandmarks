@@ -1,6 +1,27 @@
 import tensorflow as tf
 import datetime
 import os
+import random
+
+def _optimize(loss, params):
+    with tf.variable_scope('train'): 
+        global_step = tf.train.get_global_step()
+
+        if 'decay_steps' in params:
+            print('learning rate decay')
+            learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step,
+                                           params['decay_steps'], 0.96, staircase=True)
+        else:
+            print('normal learning rate')
+            learning_rate = tf.constant(params['learning_rate'])
+        
+        tf.summary.scalar('learning_rate', learning_rate)
+        # tf.summary.scalar('global_step', global_step)
+        # Passing global_step to minimize() will increment it at each step.
+        train_op = tf.train.AdamOptimizer(
+            learning_rate=learning_rate).minimize(loss, global_step=global_step)
+
+        return train_op
 
 class TFBaseModel():
     def __init__(self, name, model_dir, model_fn):
@@ -41,7 +62,7 @@ class TFBaseModel():
     def train_one_epoch(self, input_fn, writer, saver, save_path, session, steps=None):
         # train
         save_delay_steps = 100
-        logs_delay_steps = 10
+        logs_delay_steps = 100
 
         train_init = input_fn()
         loss = self.spec.loss
@@ -49,10 +70,13 @@ class TFBaseModel():
         merged_summary = tf.summary.merge_all()
 
         session.run(train_init)
-
+        step = 0
         total_loss = 0
         try:
-            while True:
+            while True:    
+                if(steps is not None and step >= steps):
+                    break
+
                 train_loss, _, current_step = session.run(
                     [loss, train_op, self.global_step])
                 print('{} - train loss: {}'.format(current_step, train_loss))
@@ -69,15 +93,14 @@ class TFBaseModel():
                     writer.add_summary(s, current_step)
                     print('write log')
 
-                if(steps is not None and current_step >= steps):
-                    break
+                step += 1
 
         except tf.errors.OutOfRangeError as err:
             print('end epoch:')
 
-        return total_loss, current_step
+        return total_loss, current_step    
 
-    def evaluate(self, input_fn, writer, current_step, session, steps=None):
+    def evaluate(self, input_fn, writer, current_step, session, steps=None):        
         merged_summary = tf.summary.merge_all()
         eval_init = input_fn()
         metrics_ops = self.spec.eval_metric_ops
@@ -88,20 +111,27 @@ class TFBaseModel():
         total_accuracy = 0
         try:
             while True:
-                step += 1
+                if(steps is not None and step >= steps):
+                    break
+                
                 s, metrics = session.run([merged_summary, metrics_ops])
-                writer.add_summary(s, current_step)
-                print('current step: {}'.format(current_step))
+                # writer.add_summary(s, current_step)
+                # print('write log')
+                print('evaluate current step: {} / {}, current_step: {}'.format(step, steps, current_step))
                 print('metrics: {}'.format(metrics))
                 total_accuracy += metrics['accuracy'][1]
 
-                if(steps is not None and step >= steps):
-                    break
+                step += 1
 
         except tf.errors.OutOfRangeError as err:
-            print('end epoch')
+            print('end epoch')        
 
-        return total_accuracy
+        # Take the mean of you measure
+        writer.add_summary(s, current_step)
+        print('write log')
+        accuracy = total_accuracy / step
+
+        return accuracy
 
     def fit(self, train_iter, eval_iter, logname, epochs=100, steps=1000):
         """
@@ -110,8 +140,10 @@ class TFBaseModel():
             self.model_dir, self.name, logname)
         train_writer = tf.summary.FileWriter(writer_path + '-train')
         eval_writer = tf.summary.FileWriter(writer_path + '-eval')
+        save_path = os.path.join(writer_path, 'weights')
         print(self.model_dir)
         print(writer_path)
+        print(save_path)
         current_step = 0
         total_losses = []
         total_accuracies = []
@@ -126,7 +158,7 @@ class TFBaseModel():
 
             # cpst = tf.train.get_checkpoint_state(writer_path)
             # if cpst is not None:
-            last_checkpoint = tf.train.latest_checkpoint(os.path.dirname(writer_path))
+            last_checkpoint = tf.train.latest_checkpoint(os.path.dirname(save_path))
             print(last_checkpoint)
             if last_checkpoint is not None:
                 saver.restore(sess, last_checkpoint)
@@ -135,7 +167,7 @@ class TFBaseModel():
             for i in range(epochs):
                 print("Traing epoch:{}".format(i))
                 total_loss, current_step = self.train_one_epoch(
-                    lambda: train_iter, writer=train_writer, saver=saver, save_path=writer_path, steps=steps, session=sess)
+                    lambda: train_iter, writer=train_writer, saver=saver, save_path=save_path, steps=steps, session=sess)
 
                 total_losses.append(total_loss)
 
