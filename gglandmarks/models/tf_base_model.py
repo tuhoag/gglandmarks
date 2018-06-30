@@ -3,6 +3,14 @@ import datetime
 import os
 import random
 
+def _loss(labels, logits):
+    with tf.variable_scope('loss'):
+        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels=labels, logits=logits), name='loss')
+
+        tf.summary.scalar('loss', loss)
+
+        return loss
 
 def _input_layer(features, name='input'):
     with tf.variable_scope(name):
@@ -77,6 +85,7 @@ class TFBaseModel():
         train_init = input_fn()
         loss = self.spec.loss
         train_op = self.spec.train_op
+        # metrics_ops = self.spec.eval_metric_ops
         merged_summary = tf.summary.merge_all()
 
         session.run(train_init)

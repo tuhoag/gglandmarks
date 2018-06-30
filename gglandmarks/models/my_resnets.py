@@ -1,5 +1,5 @@
 import tensorflow as tf
-from .tf_base_model import TFBaseModel, _optimize, _input_layer
+from .tf_base_model import TFBaseModel, _optimize, _input_layer, _loss
 import os
 from gglandmarks.datasets import GoogleLandmarkDataset
 import datetime
@@ -213,16 +213,6 @@ def _inference(features, params):
                 activation=None)
 
     return Y_hat
-
-
-def _loss(labels, logits):
-    with tf.variable_scope('loss'):
-        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels=labels, logits=logits), name='loss')
-
-        tf.summary.scalar('loss', loss)
-
-        return loss
 
 
 def _model_fn(features, labels, mode, params):

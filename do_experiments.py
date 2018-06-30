@@ -2,6 +2,6 @@ from gglandmarks.experiments import finetune_vgg, finetune_resnet, finetune_mobi
 # data_pipeline.main()
 # clean_exp.main()
 
-finetune_resnet.main()
-# finetune_vgg.main()
+# finetune_resnet.main()
+finetune_vgg.main()
 # finetune_mobilenet.main()

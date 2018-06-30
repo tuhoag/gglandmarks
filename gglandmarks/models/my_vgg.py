@@ -5,7 +5,7 @@ from tensorflow.python import debug as tf_debug
 from gglandmarks.datasets import GoogleLandmarkDataset
 import pandas as pd
 import traceback
-from .tf_base_model import TFBaseModel, _optimize
+from .tf_base_model import TFBaseModel, _optimize, _loss
 
 
 def _conv_block(input, conv_nums, channels_out, kernel_size=(3, 3), padding='same', activation=tf.nn.relu, name='conv-block'):
@@ -73,26 +73,7 @@ def fc_layer(input, channels_out, activation=None, name='fc'):
         tf.summary.histogram('sparsity', tf.nn.zero_fraction(value))
         return value
 
-
-def _my_vgg_model_fn(features, labels, mode, params):
-    """[summary]
-
-    Arguments:
-        X {tensor[batch_size, width, height, channels]} -- a batch of images
-        Y {tensor[batch_size,]} -- a batch of landmarks
-        mode {ModeKeys} -- Estimator Mode
-        params {dictionary} -- Params to customize the model
-            - 'num_classes': the number of output classes
-            - 'learning_rate': learning rate
-            - 'conv_nums': the number of conv in each layers (vgg16 or vgg19)
-            - 'conv_channels_out': the output channels of each layers
-            - 'dense_count': the number of dense layer
-            - 'dense_weights_count': the number of weights in each dense layer
-
-    Returns:
-        [EstimatorSpec] -- Estimator Spec
-    """
-
+def _inference(features, params):
     X = features['image']
 
     tf.summary.image('input', X, 3)
@@ -115,28 +96,42 @@ def _my_vgg_model_fn(features, labels, mode, params):
 
     for i in range(dense_count):
         dense_out = fc_layer(dense_out, dense_weights_count,
-                             activation=tf.nn.sigmoid, name='fc'+str(i))
-    # dense1 = fc_layer(flatten, 2048, activation=tf.nn.relu, name='fc1')
-    # dense2 = fc_layer(dense1, 2048, activation=tf.nn.sigmoid, name='fc2')
+                             activation=tf.nn.relu, name='fc'+str(i))    
 
     Y_hat = fc_layer(dense_out, params['num_classes'],
                      activation=None, name='logits')
 
-    print('label shape: {}'.format(labels.shape))
-    print('output shape: {}'.format(Y_hat.shape))
-    with tf.variable_scope('loss'):
-        loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(
-            labels=labels, logits=Y_hat), name='loss')
+    return Y_hat
 
-    tf.summary.scalar('loss', loss)
+def _my_vgg_model_fn(features, labels, mode, params):
+    """[summary]
 
-    predicted_classes = tf.argmax(Y_hat, 1)
+    Arguments:
+        X {tensor[batch_size, width, height, channels]} -- a batch of images
+        Y {tensor[batch_size,]} -- a batch of landmarks
+        mode {ModeKeys} -- Estimator Mode
+        params {dictionary} -- Params to customize the model
+            - 'num_classes': the number of output classes
+            - 'learning_rate': learning rate
+            - 'conv_nums': the number of conv in each layers (vgg16 or vgg19)
+            - 'conv_channels_out': the output channels of each layers
+            - 'dense_count': the number of dense layer
+            - 'dense_weights_count': the number of weights in each dense layer
+
+    Returns:
+        [EstimatorSpec] -- Estimator Spec
+    """
+
+    logits = _inference(features, params)
+    loss = _loss(labels, logits)
+
+    predicted_classes = tf.argmax(logits, 1)
 
     # prediction
     predictions = {
         'class_ids': predicted_classes[:, tf.newaxis],
-        'probabilities': tf.nn.softmax(Y_hat),
-        'logits': Y_hat
+        'probabilities': tf.nn.softmax(logits),
+        'logits': logits
     }
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode, predictions=predictions)
@@ -194,7 +189,7 @@ class MyVGG(TFBaseModel):
         ]
 
         i = 0
-        batch_size = 100
+        batch_size = 32
         stats_file = open('./output/fine_tune-' +
                           str(datetime.datetime.now()) + '.csv', 'w')
         stats_file.write(
@@ -204,7 +199,7 @@ class MyVGG(TFBaseModel):
         try:
 
             for conv_num in conv_nums:
-                image_size = 64
+                image_size = 128
                 images_count_min = 500
                 learning_rate = 0.0001
                 dense_weights_count = dense_weights_counts[1]
@@ -219,7 +214,7 @@ class MyVGG(TFBaseModel):
 
                 logname = 'lr={}-icm={}-c={}-s={}-cn={}-dwc={}-dc={}'.format(
                     learning_rate, images_count_min, dataset.num_classes, image_size, conv_num, dense_weights_count, dense_count).replace('[', '(').replace(']', ')')
-                    
+
                 print(logname)
                 model_params = {
                     'num_classes': dataset.num_classes,
