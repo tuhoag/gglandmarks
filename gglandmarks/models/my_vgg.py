@@ -199,6 +199,7 @@ class MyVGG(TFBaseModel):
         try:
 
             for conv_num in conv_nums:
+                # conv_num=conv_nums[1]
                 image_size = 128
                 images_count_min = 500
                 learning_rate = 0.0001

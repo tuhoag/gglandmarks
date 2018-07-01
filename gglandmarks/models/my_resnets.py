@@ -188,7 +188,7 @@ def _inference(features, params):
     ]
     strides = [0, 0, 1, 2, 2, 2]
     kernel_sizes = [0, 0, 3, 3, 3, 3]
-    num_identity_blocks = [0, 0, 2, 3, params['stage4_identity_blocks'], 2]
+    num_identity_blocks = params['num_identity_blocks']    
 
     for stage in range(2, 6):
         with tf.variable_scope('stage-' + str(stage)):
@@ -208,9 +208,18 @@ def _inference(features, params):
                                     strides=(2, 2))
 
     X = tf.layers.flatten(inputs=X)
+
+    denses_count = params['denses_count'] if 'denses_count' in params else 0
+    for i in range(denses_count):
+        X = fc_layer(input=X,
+                channels_out=1024,
+                activation=tf.nn.relu,
+                name='fc_layer-' + str(i))
+
     Y_hat = fc_layer(input=X,
                 channels_out=params['num_classes'],
-                activation=None)
+                activation=None,
+                name='logits')
 
     return Y_hat
 
@@ -277,7 +286,9 @@ class MyResNets(TFBaseModel):
         learning_rates = [0.0001]
         batch_size = 32
         target_size = 128
-
+        num_identity_blocks = [
+            [0, 0, 2, 3, 3, 2]
+        ]
         for learning_rate in learning_rates:
             dataset = GoogleLandmarkDataset(
                 data_path, (image_original_size[0], image_original_size[1]), images_count_min=500)
@@ -287,7 +298,8 @@ class MyResNets(TFBaseModel):
             model_params = {
                 'num_classes': dataset.num_classes,
                 'learning_rate': learning_rate,
-                'stage4_identity_blocks': 5
+                'num_identity_blocks': num_identity_blocks[0],
+                'denses_count': 2
                 # 'decay_steps': dataset.train_df.shape[0] / batch_size
             }
 
@@ -297,7 +309,7 @@ class MyResNets(TFBaseModel):
                         target_size=(target_size, target_size),
                         params=model_params)
 
-            logname = 'slr={}-cls={}-l={}-i={}-b={}'.format(learning_rate, dataset.num_classes, model_params['stage4_identity_blocks'], target_size, batch_size).replace('[', '(').replace(']', ')')
+            logname = 'slr={}-cls={}-nib={}-i={}-b={}-dc={}'.format(learning_rate, dataset.num_classes, model_params['num_identity_blocks'], target_size, batch_size, model_params['denses_count']).replace('[', '(').replace(']', ')')
 
             total_losses, total_accuracies = model.fit(train_iter=model.train_iter,
                                                     eval_iter=model.eval_iter,
