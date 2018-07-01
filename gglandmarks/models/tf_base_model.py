@@ -85,7 +85,7 @@ class TFBaseModel():
         train_init = input_fn()
         loss = self.spec.loss
         train_op = self.spec.train_op
-        # metrics_ops = self.spec.eval_metric_ops
+        metrics_ops = self.spec.eval_metric_ops
         merged_summary = tf.summary.merge_all()
 
         session.run(train_init)
@@ -94,11 +94,12 @@ class TFBaseModel():
         try:
             while True:
                 if(steps is not None and step >= steps):
+                    print('end epoch')
                     break
 
-                train_loss, _, current_step = session.run(
-                    [loss, train_op, self.global_step])
-                print('{} - train loss: {}'.format(current_step, train_loss))
+                train_loss, _, current_step, metrics = session.run(
+                    [loss, train_op, self.global_step, metrics_ops])
+                print('{} - train loss: {} - metrics: {}'.format(current_step, train_loss, metrics))
                 total_loss += train_loss
 
                 if current_step % save_delay_steps == 0:
@@ -133,7 +134,7 @@ class TFBaseModel():
                 if(steps is not None and step >= steps):
                     break
 
-                s, metrics = session.run([merged_summary, metrics_ops])
+                s, metrics, current_step = session.run([merged_summary, metrics_ops, self.global_step])
                 # writer.add_summary(s, current_step)
                 # print('write log')
                 print('evaluate current step: {} / {}, current_step: {}'.format(step, steps, current_step))
