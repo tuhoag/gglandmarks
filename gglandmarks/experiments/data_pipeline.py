@@ -2,7 +2,8 @@ from gglandmarks.datasets import GoogleLandmarkDataset
 import time
 import tensorflow as tf
 import pandas as pd
-
+# import cpu
+import multiprocessing
 
 def calculate_generator(dataset, trial, batch_size, target_size):
     gen = dataset.get_train_validation_generator(
@@ -32,17 +33,20 @@ def calculate_generator(dataset, trial, batch_size, target_size):
     }
 
     return stats
-    
 
 
-def calculate_dataapi(dataset, trial, batch_size, target_size):
+def calculate_dataapi(dataset, trial, batch_size, target_size, num_parallel):
+    if num_parallel == 1:
+        num_parallel = None
+
     gen = dataset.get_train_validation_generator(
-            batch_size=batch_size, target_size=target_size, validation_size=0.1, output_type='dataset', shuffle=False)
+        batch_size=batch_size, target_size=target_size, validation_size=0.1, output_type='dataset', shuffle=False, num_parallel=num_parallel)
     train_dataset, _ = next(gen)
     iterator = train_dataset.make_initializable_iterator()
     features, labels = iterator.get_next()
 
     total_duration = 0
+    print('calculating dataapi for:{}'.format(num_parallel))
 
     with tf.Session() as sess:
             # sess.run(tf.global_variables_initializer)
@@ -58,8 +62,9 @@ def calculate_dataapi(dataset, trial, batch_size, target_size):
             print('time: {}'.format(duration))
 
         avg_duration = total_duration / trial
+
         stats = {
-            'type': 'dataapi',
+            'type': 'dataapi-{}'.format(num_parallel),
             'batch_size': batch_size,
             'total_time': total_duration,
             'average': avg_duration,
@@ -70,8 +75,14 @@ def calculate_dataapi(dataset, trial, batch_size, target_size):
 
 
 def load_data():
-    epochs = 10
-    max_batch_size = 1000
+    trial = 10
+
+    max_batch_size = 1024
+    cpu_counts = [ i for i in range(2, multiprocessing.cpu_count() + 1, 2)]
+    cpu_counts.insert(0, 1)
+    print(cpu_counts)
+    batch_sizes = [2 ** i for i in range(5, 11)]
+    print(batch_sizes)
     data_path = './data/landmarks_recognition/'
     image_original_size = (128, 128)
     target_size = (128, 128)
@@ -81,17 +92,21 @@ def load_data():
     stats_df = pd.DataFrame(
         columns=['type', 'batch_size', 'total_time', 'average', 'trial'])
     index = 0
-    for batch_size in range(50, max_batch_size, 50):
-        print('batch size:{}'.format(batch_size))
-        stats = calculate_generator(dataset, epochs, batch_size, target_size)        
-        stats_df.loc[index] = stats        
-        index += 1
-        print(stats)
 
-        stats = calculate_dataapi(dataset, epochs, batch_size, target_size)
+    cpu_counts = list(range(1, multiprocessing.cpu_count()))
+
+    for batch_size in batch_sizes:
+        print('batch size:{}'.format(batch_size))
+        stats = calculate_generator(dataset, trial, batch_size, target_size)
         stats_df.loc[index] = stats
         index += 1
-        print(stats)
+        print('python generator: {}'.format(stats))
+
+        for num_cpus in cpu_counts:
+            stats = calculate_dataapi(dataset, trial, batch_size, target_size, num_cpus)
+            stats_df.loc[index] = stats
+            index += 1
+            print('tf dataapi: {}'.format(stats))
 
     print(stats_df)
     return stats_df

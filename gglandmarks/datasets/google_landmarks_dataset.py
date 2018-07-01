@@ -37,8 +37,8 @@ class GoogleLandmarkDataset(object):
 
         # print('train before clean: {}'.format(self.train_df.shape))
         if images_count_min is not None:
-            self.train_df = self.clean_train_data(self.train_df, self.images_count_min)        
-            
+            self.train_df = self.clean_train_data(self.train_df, self.images_count_min)
+
             # print('train after clean: {}'.format(self.train_df.shape))
 
         # build classes indexes
@@ -119,7 +119,7 @@ class GoogleLandmarkDataset(object):
         # print(len(encoder.classes_))
         return encoder
 
-    def get_train_validation_generator(self, batch_size, target_size, validation_size, output_type='generator', shuffle=False):
+    def get_train_validation_generator(self, batch_size, target_size, validation_size, output_type='generator', shuffle=False, num_parallel=None):
         """Get train and validation generators
 
         Arguments:
@@ -141,21 +141,25 @@ class GoogleLandmarkDataset(object):
         while(True):
             train_path, test_path, train_landmark, test_landmark = train_test_split(paths, landmarks, test_size=validation_size)
             print('finish splitting train & validation')
-            data_gen = self.data_generator(batch_size, target_size, output_type)
+            data_gen = self.data_generator(
+                batch_size, target_size, output_type, num_parallel=num_parallel)
 
             yield data_gen(train_path, train_landmark), data_gen(test_path, test_landmark)
 
-    def data_generator(self, batch_size, target_size, output_type, shuffle=False):
+    def data_generator(self, batch_size, target_size, output_type, shuffle=False, num_parallel=None):
         def create_data_generator(paths, landmarks):
             return DataGenerator(paths, landmarks, self.encoder, batch_size, target_size)
 
         def create_data_set(paths, landmarks):
             labels = self.encoder.class_to_label(landmarks)
             dataset = tf.data.Dataset.from_tensor_slices((paths, labels))
-            dataset = dataset.map(_parse)
+
+            dataset = dataset.map(map_func=_parse,
+                                num_parallel_calls=num_parallel)
+
             if shuffle:
                 dataset = dataset.shuffle(buffer_size=batch_size)
-                
+
             dataset = dataset.batch(batch_size)
             dataset = dataset.prefetch(batch_size)
             # dataset = tf.data.Dataset.from_tensor_slices((paths, labels)).map(_parse).batch(batch_size).prefetch(batch_size)
