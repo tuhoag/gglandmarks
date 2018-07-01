@@ -40,5 +40,21 @@ def visualize_loss():
     plt.savefig('./output/experiments/lr/loss.eps', format='eps', dpi=1000)
     plt.show()
 
-visualize_acc()
-visualize_loss()
+def visualize_network_acc():
+    resnet_acc_path = './output/experiments/networks/resnets-eval-accuracy.csv'
+    vgg_acc_path = './output/experiments/networks/vgg-eval-accuracy.csv'
+
+    resnet_df = pd.DataFrame.from_csv(resnet_acc_path)
+    vgg_df = pd.DataFrame.from_csv(vgg_acc_path)
+
+    fig, ax = plt.subplots()
+    ax.plot(resnet_df['Step'], resnet_df['Value'], label='ResNet-50')
+    ax.plot(vgg_df['Step'], vgg_df['Value'], label='VGG-16')
+    ax.grid()
+    ax.legend()
+    plt.savefig('./output/experiments/networks/acc.eps', format='eps', dpi=1000)
+    plt.show()
+
+# visualize_acc()
+# visualize_loss()
+visualize_network_acc()

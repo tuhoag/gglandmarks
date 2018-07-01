@@ -1,2 +1,0 @@
-learning_rate,images_count_min,num_classes,image_size,conv_num,dense_weights_count,dense_count,loss,accuracy
-0.0001,100,2025,32,"[2, 2, 3, 3, 3]",1024,1,[8.2720365524292],[0.0]0.0001,100,2025,32,"[2, 2, 3, 3, 3]",1024,2,[8.128390312194824],[0.0]
