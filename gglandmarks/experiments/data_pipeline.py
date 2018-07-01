@@ -75,7 +75,7 @@ def calculate_dataapi(dataset, trial, batch_size, target_size, num_parallel):
 
 
 def load_data():
-    trial = 10
+    trial = 20
 
     max_batch_size = 1024
     cpu_counts = [ i for i in range(2, multiprocessing.cpu_count() + 1, 2)]
@@ -91,9 +91,7 @@ def load_data():
 
     stats_df = pd.DataFrame(
         columns=['type', 'batch_size', 'total_time', 'average', 'trial'])
-    index = 0
-
-    cpu_counts = list(range(1, multiprocessing.cpu_count()))
+    index = 0    
 
     for batch_size in batch_sizes:
         print('batch size:{}'.format(batch_size))
