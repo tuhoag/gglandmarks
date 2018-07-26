@@ -23,10 +23,10 @@ def _optimize(loss, params):
     with tf.variable_scope('train'):
         global_step = tf.train.get_global_step()
 
-        if 'decay_steps' in params:
+        if 'decay_steps' in params and params['decay_steps'] is not None:
             print('learning rate decay')
             learning_rate = tf.train.exponential_decay(params['learning_rate'], global_step,
-                                           params['decay_steps'], 0.96, staircase=True)
+                                           params['decay_steps'], 0.96, staircase=False)
         else:
             print('normal learning rate')
             learning_rate = tf.constant(params['learning_rate'])
@@ -37,7 +37,11 @@ def _optimize(loss, params):
 
         if 'optimizer' not in params:
             train_op = tf.train.AdamOptimizer(
-                learning_rate=learning_rate).minimize(loss, global_step=global_step)        
+                learning_rate=learning_rate).minimize(loss, global_step=global_step)
+        elif params['optimizer'] == 'rmsprop':
+            train_op = tf.train.RMSPropOptimizer(learning_rate=learning_rate).minimize(loss, global_step=global_step)
+        elif params['optimizer'] == 'momentum':
+            train_op = tf.train.MomentumOptimizer(learning_rate=learning_rate, momentum=0.9).minimize(loss, global_step=global_step)
 
         return train_op
 
