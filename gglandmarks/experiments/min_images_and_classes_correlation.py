@@ -7,16 +7,21 @@ def calculate_classes_histogram(df):
     new_df = df.groupby(by='landmark_id').count()
     new_df = new_df.reset_index()
     new_df = new_df.sort_values(by=['path'], ascending=[0])
-    
-    new_df = new_df.head(100)
+
+    new_df = new_df.head(30)
     print(new_df)
     # new_df.plot.hist()
     print(len(new_df))
     fig, ax = plt.subplots()
 
     plt.bar(np.arange(len(new_df)), height=new_df['path'])
+
     ax.set_xticks(np.arange(len(new_df)))
     ax.set_xticklabels(new_df['landmark_id'], rotation=90)
+    plt.xlabel('Landmarks')
+    plt.ylabel('The number of images')
+    # plt.grid()
+    plt.savefig('./output/experiments/his-cls.eps', format='eps', dpi=1000)
     plt.show()
     return new_df
 
@@ -29,7 +34,7 @@ def calculate_mean_and_std(df):
     # print(new_df)
 
     mean = new_df['path'].mean()
-    # print('mean: {}'.format(mean))    
+    # print('mean: {}'.format(mean))
 
     std = new_df['path'].std()
     # print('std: {}'.format(std))
@@ -43,6 +48,8 @@ def plot_stats(df):
     plt.plot(df['images_count_min'], df['num_classes'])
     plt.xlabel('The minimum number of images per class')
     plt.ylabel('The number of classes')
+    plt.grid()
+    plt.savefig('./output/experiments/min-cls.eps', format='eps', dpi=1000)
     plt.show()
 
 def main(reload_stats=False):
@@ -79,12 +86,12 @@ def main(reload_stats=False):
             i = i + 1
             # print
 
-    # plot_stats(stats_df)    
+    # plot_stats(stats_df)
         stats_df.to_csv(stat_path)
         print(stats_df)
 
-    # plot_stats(pd.DataFrame.from_csv(stat_path))
-    
+    plot_stats(pd.DataFrame.from_csv(stat_path))
+
     dataset = GoogleLandmarkDataset(
                 data_path, image_original_size, images_count_min=None)
 

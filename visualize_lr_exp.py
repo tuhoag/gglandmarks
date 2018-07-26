@@ -1,6 +1,7 @@
 import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
+from gglandmarks.experiments import min_images_and_classes_correlation as mincls
 
 def visualize_acc():
     l0001path = './output/experiments/lr/my-resnets-lr=0.0001-cls=378-train-accuracy.csv'
@@ -57,4 +58,5 @@ def visualize_network_acc():
 
 # visualize_acc()
 # visualize_loss()
-visualize_network_acc()
+# visualize_network_acc()
+mincls.main()
