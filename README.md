@@ -1,0 +1,2 @@
+# Google Landmark Detection
+This project includes my solution for the Google Landmark Detection Challenge in Kaggle. The models are implemented in Tensorflow with some improvement on the classification training using both CPU (preparing data while training) and GPU (training the data). I also implemented some state-of-the-art modules (e.g., Batch Normalization). The project was presented in the Deep Learning and Image Classification course at Polimi in 2018.
